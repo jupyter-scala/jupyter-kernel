@@ -1,0 +1,7 @@
+target/
+target-2.10/
+/.idea/
+/.idea_modules/
+logs/
+notebook/notebooks/
+/notebooks
