@@ -72,3 +72,5 @@ but it provides some (non exhaustive) fallbacks to deal with clients
 using older versions.
 
 Released under the LGPL version 3 license.
+
+Initially released as the [jove](https://github.com/jove-sh/jove) library
