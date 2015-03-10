@@ -5,11 +5,7 @@ import sbtbuildinfo.Plugin._
 import sbtrelease.ReleasePlugin._
 import com.typesafe.sbt.pgp.PgpKeys
 
-class JupyterBuild(
-  scalaVersionStr: String,
-  crossScalaVersionsStr: Seq[String],
-  base: File
-) extends Build {
+object JupyterBuild extends Build {
   private val publishSettings = xerial.sbt.Sonatype.sonatypeSettings ++ com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSettings ++ Seq(
     publishMavenStyle := true,
     publishTo := {
@@ -43,8 +39,8 @@ class JupyterBuild(
 
   private val commonSettings = Seq(
     organization := "com.github.alexarchambault.jupyter",
-    scalaVersion := scalaVersionStr,
-    crossScalaVersions := crossScalaVersionsStr,
+    scalaVersion := "2.11.6",
+    crossScalaVersions := Seq("2.10.5", "2.11.6"),
     scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature"),
     resolvers ++= Seq(
       "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
@@ -56,7 +52,7 @@ class JupyterBuild(
     ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
   ) ++ releaseSettings ++ packSettings ++ publishSettings
 
-  lazy val bridge = Project(id = "bridge", base = base / "bridge")
+  lazy val bridge = Project(id = "bridge", base = file("bridge"))
     .settings(commonSettings: _*)
     .settings(buildInfoSettings: _*)
     .settings(
@@ -67,7 +63,7 @@ class JupyterBuild(
       unmanagedSourceDirectories in Compile += (sourceDirectory in Compile).value / s"scala-${scalaBinaryVersion.value}"
     )
 
-  lazy val kernel = Project(id = "kernel", base = base / "kernel")
+  lazy val kernel = Project(id = "kernel", base = file("kernel"))
     .settings(commonSettings: _*)
     .settings(buildInfoSettings: _*)
     .settings(
@@ -104,7 +100,7 @@ class JupyterBuild(
     )
     .dependsOn(bridge)
 
-  lazy val metaKernel = Project(id = "meta-kernel", base = base / "meta-kernel")
+  lazy val metaKernel = Project(id = "meta-kernel", base = file("meta-kernel"))
     .settings(commonSettings: _*)
     .settings(conscript.Harness.conscriptSettings: _*)
     .settings(packSettings ++ publishPackArchive: _*)
@@ -129,7 +125,7 @@ class JupyterBuild(
     )
     .dependsOn(kernel)
 
-  lazy val root = Project(id = "jupyter-kernel", base = base)
+  lazy val root = Project(id = "jupyter-kernel", base = file("."))
     .settings(commonSettings: _*)
     .aggregate(bridge, kernel, metaKernel)
 }

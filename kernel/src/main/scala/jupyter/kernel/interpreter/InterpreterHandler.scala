@@ -178,26 +178,16 @@ object InterpreterHandler extends LazyLogging {
   }
 
   private def complete(send: (Channel, Message) => Unit, interpreter: Interpreter, msg: ParsedMessage[Input.CompleteRequest]): Message = {
-    val code =
-      if (msg.content.cursor_pos >= 0)
-        msg.content.code.splitAt(msg.content.cursor_pos)._1.split("""[^\w.%]""").last
-      else
-        msg.content.code
-
-    val (matches, suffixLen) = {
-      val _completions = interpreter.complete(code)
-      val common = commonPrefix(_completions)
-      val prefix = suffixPrefix(code, common)
-      (_completions.map(code + _.stripPrefix(prefix)), code.length)
-    }
+    val pos = Some(msg.content.cursor_pos).filter(_ >= 0) getOrElse msg.content.code.length
+    val (i, matches) = interpreter.complete(msg.content.code, pos)
 
     msg.reply(
       "complete_reply",
       Output.CompleteReply(
-        matches=matches,
-        cursor_start = (if (msg.content.cursor_pos >= 0) msg.content.cursor_pos else code.length) - suffixLen,
-        cursor_end = if (msg.content.cursor_pos >= 0) msg.content.cursor_pos else code.length,
-        status=ExecutionStatus.ok
+        matches = matches,
+        cursor_start = pos - i,
+        cursor_end = pos,
+        status = ExecutionStatus.ok
       )
     )
   }

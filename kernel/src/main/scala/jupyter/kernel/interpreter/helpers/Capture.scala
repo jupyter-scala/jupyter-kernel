@@ -1,5 +1,7 @@
 package jupyter.kernel.interpreter.helpers
 
+// From IScala
+
 object Capture {
   private def watchStream(input: java.io.InputStream, size: Int, fn: String => Unit): Thread = new Thread {
     override def run() = {
