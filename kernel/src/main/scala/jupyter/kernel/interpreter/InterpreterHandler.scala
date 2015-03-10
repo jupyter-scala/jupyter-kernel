@@ -184,7 +184,7 @@ object InterpreterHandler extends LazyLogging {
     msg.reply(
       "complete_reply",
       Output.CompleteReply(
-        matches = matches,
+        matches = matches.toList,
         cursor_start = pos - i,
         cursor_end = pos,
         status = ExecutionStatus.ok
