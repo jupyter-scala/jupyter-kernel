@@ -7,6 +7,7 @@
 It mainly targets Scala for now, but could be used for other
 languages as well in the future.
 
+[![Build Status](https://travis-ci.org/alexarchambault/jupyter-kernel.svg?branch=master)](https://travis-ci.org/alexarchambault/jupyter-kernel)
 
 ## Quick start
 
