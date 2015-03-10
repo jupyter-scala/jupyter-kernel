@@ -27,7 +27,7 @@ of the `jupyter.interpreter.Interpreter` trait,
 ```scala
 trait Interpreter {
   def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean): Result
-  def complete(s: String): List[String] // Subject to change
+  def complete(code: String, pos: Int): (Int, Seq[String])
   def executionCount: Int
   def reset(): Unit
   def stop(): Unit
