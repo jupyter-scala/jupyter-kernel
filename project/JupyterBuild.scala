@@ -50,7 +50,7 @@ object JupyterBuild extends Build {
     scalacOptions += "-target:jvm-1.7",
     ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
     ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
-  ) ++ releaseSettings ++ packSettings ++ publishSettings
+  ) ++ releaseSettings ++ publishSettings
 
   lazy val bridge = Project(id = "bridge", base = file("bridge"))
     .settings(commonSettings: _*)
@@ -80,19 +80,16 @@ object JupyterBuild extends Build {
       name := "jupyter-kernel",
       libraryDependencies ++= Seq(
         "com.typesafe" % "config" % "1.2.1",
-        "commons-codec" % "commons-codec" % "1.9",
         "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "0.1.0",
-        "com.github.scala-incubator.io" %% "scala-io-core" % "0.4.3",
-        "com.github.scala-incubator.io" %% "scala-io-file" % "0.4.3",
         "org.zeromq" % "jeromq" % "0.3.4",
         "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2"
       ),
       libraryDependencies ++= {
         if (scalaVersion.value startsWith "2.10.") Seq(
-          "com.chuusai" % "shapeless_2.10.4" % "2.1.0-RC2", // FIXME Switch to _2.10.5 once it is published
+          "com.chuusai" % "shapeless_2.10.4" % "2.1.0", // FIXME Switch to _2.10.5 once it is published
           compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
         ) else Seq(
-          "com.chuusai" %% "shapeless" % "2.1.0-RC2"
+          "com.chuusai" %% "shapeless" % "2.1.0"
         )
       },
       unmanagedSourceDirectories in Compile +=
@@ -103,7 +100,7 @@ object JupyterBuild extends Build {
   lazy val metaKernel = Project(id = "meta-kernel", base = file("meta-kernel"))
     .settings(commonSettings: _*)
     .settings(conscript.Harness.conscriptSettings: _*)
-    .settings(packSettings ++ publishPackArchive: _*)
+    .settings(packAutoSettings ++ publishPackTxzArchive ++ publishPackZipArchive: _*)
     .settings(
       name := "jupyter-meta-kernel",
       libraryDependencies ++= Seq(
@@ -117,11 +114,7 @@ object JupyterBuild extends Build {
           )
         else
           Seq()
-      },
-      // Should not be necessary with the next release of sbt-pack (> 0.6.5) and packAutoSettings
-      packMain := Map(
-        "jupyter-meta-kernel" -> "jupyter.kernel.meta.JupyterMetaKernel"
-      )
+      }
     )
     .dependsOn(kernel)
 

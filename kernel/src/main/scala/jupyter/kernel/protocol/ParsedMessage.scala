@@ -2,7 +2,7 @@ package jupyter
 package kernel
 package protocol
 
-import argonaut.{EncodeJson, Json}
+import argonaut.{JsonObject, EncodeJson, Json}
 import _root_.scala.util.Try
 
 object Protocol {
@@ -399,9 +399,61 @@ object Output {
 
 }
 
+sealed trait Cell {
+  def cell_type: String
+  def metadata: Seq[(String, Json)]
+}
+
+case class MarkdownCell(
+  metadata: Seq[(String, Json)],
+  source: String,
+  cell_type: String = "markdown"
+) extends Cell {
+  assert(cell_type == "markdown")
+}
+
+sealed trait CodeCellOutput {
+  def output_type: String
+}
+
+case class StreamCellOutput(
+  name: String,
+  text: List[String],
+  output_type: String = "stream"
+) extends CodeCellOutput {
+  assert(output_type == "stream")
+}
+
+case class DisplayDataOutput(
+  metadata: Seq[(String, Json)],
+  data: Seq[(String, Json)],
+  output_type: String = "display_data"
+) extends CodeCellOutput {
+  assert(output_type == "display_data")
+}
+
+case class ExecuteResultOutput(
+  execution_count: Int,
+  metadata: Seq[(String, Json)],
+  data: Seq[(String, Json)],
+  output_type: String = "execute_result"
+) extends CodeCellOutput {
+  assert(output_type == "execute_result")
+}
+
+case class CodeCell(
+  execution_count: Int,
+  metadata: Seq[(String, Json)],
+  source: String,
+  outputs: List[CodeCellOutput],
+  cell_type: String = "code"
+) extends Cell {
+  assert(cell_type == "code")
+}
+
 case class Notebook(
   nbformat: Int,
   nbformat_minor: Int,
-  metadata: Map[String, String],
+  metadata: Seq[(String, Json)],
   cells: List[String]
 )

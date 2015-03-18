@@ -1,7 +1,6 @@
 package jupyter.bridge
 
 import scala.reflect.runtime.universe._
-import scala.util.control.ControlThrowable
 
 // Bridge API, similar to the one of Ammonite
 
@@ -10,17 +9,7 @@ trait BridgeHolder {
   lazy val bridge = bridge0
 }
 
-/**
- * Thrown to exit the REPL cleanly
- */
-case object ReplExit extends ControlThrowable
-
 trait Bridge {
-  /**
-   * Exit the Ammonite REPL. You can also use Ctrl-D to exit
-   */
-  def exit() = throw ReplExit
-
   /**
    * Clears the screen of the REPL
    */

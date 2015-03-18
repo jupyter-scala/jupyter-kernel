@@ -2,7 +2,7 @@ package jupyter
 package kernel
 package server
 
-import java.io.File
+import java.io.{PrintWriter, File}
 import java.lang.management.ManagementFactory
 import java.net.{InetAddress, ServerSocket}
 import argonaut._, Argonaut._, Shapeless._
@@ -10,7 +10,6 @@ import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import socket.zmq.{Connection, ZMQMessageSocket}
 import socket.SocketKernel
-import scalax.file.Path
 import protocol.{Output, NbUUID}
 import interpreter.InterpreterKernel
 import scalaz._, Scalaz._
@@ -51,7 +50,9 @@ object Server extends LazyLogging {
       signature_scheme = Some("hmac-sha256")
     )
 
-    Path(connFile) write { val j = c.asJson.spaces2; j }
+    val w = new PrintWriter(connFile)
+    w write c.asJson.spaces2
+    w.close()
 
     c
   }
@@ -145,7 +146,7 @@ object Server extends LazyLogging {
           logger info s"Creating ipython connection file ${connFile.getAbsolutePath}"
           \/-(c)
         } else
-          Path(connFile).string.decodeEither[Connection].leftMap { err =>
+          io.Source.fromFile(connFile).mkString.decodeEither[Connection].leftMap { err =>
             logger error s"Loading connection file: $err"
             new Exception(s"Error while loading connection file: $err")
           }

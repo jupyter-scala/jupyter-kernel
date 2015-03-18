@@ -1,6 +1,6 @@
 resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/"
 
-addSbtPlugin("org.xerial.sbt" % "sbt-pack" % "0.6.5")
+addSbtPlugin("org.xerial.sbt" % "sbt-pack" % "0.6.6")
 
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "0.2.2")
 
