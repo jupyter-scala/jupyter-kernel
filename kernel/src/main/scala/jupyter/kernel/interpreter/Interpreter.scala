@@ -2,6 +2,7 @@ package jupyter
 package kernel.interpreter
 
 import bridge.DisplayData
+import acyclic.file
 
 trait Interpreter {
   def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean): Interpreter.Result

@@ -1,7 +1,7 @@
 package jupyter.kernel
 package protocol
 
-import socket.zmq.Connection
+import acyclic.file
 
 object Meta {
   case class MetaKernelStartRequest()

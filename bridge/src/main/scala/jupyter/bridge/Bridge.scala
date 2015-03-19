@@ -1,6 +1,7 @@
 package jupyter.bridge
 
 import scala.reflect.runtime.universe._
+import acyclic.file
 
 // Bridge API, similar to the one of Ammonite
 

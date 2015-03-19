@@ -3,12 +3,14 @@ package kernel
 package socket.zmq
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.kernel.protocol.HMAC
+import jupyter.kernel.protocol.{Connection, HMAC}
 
 import scalaz.{\/-, -\/, \/}
 import MessageSocket._
 import org.zeromq.ZMQ
 import org.zeromq.ZMQ.{ Poller, PollItem }
+
+import acyclic.file
 
 case class ZMQMessageSocket(
   key: String,
@@ -154,5 +156,23 @@ case class ZMQMessageSocket(
     heartbeat.close()
 
     ctx.term()
+  }
+}
+
+object ZMQMessageSocket {
+  def start(connection: Connection, isServer: Boolean, identity: Option[String]): Throwable \/ ZMQMessageSocket = \/.fromTryCatchNonFatal {
+    new ZMQMessageSocket(
+      connection.key,
+      connection.signature_scheme,
+      connection.transport,
+      connection.ip,
+      connection.iopub_port,
+      connection.shell_port,
+      connection.control_port,
+      connection.stdin_port,
+      connection.hb_port,
+      isServer = isServer,
+      identity = identity
+    )
   }
 }

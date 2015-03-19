@@ -49,7 +49,10 @@ object JupyterBuild extends Build {
     ),
     scalacOptions += "-target:jvm-1.7",
     ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
-    ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
+    ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value,
+    autoCompilerPlugins := true,
+    addCompilerPlugin("com.lihaoyi" %% "acyclic" % "0.1.2"),
+    libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.2" % "provided"
   ) ++ releaseSettings ++ publishSettings
 
   lazy val bridge = Project(id = "bridge", base = file("bridge"))

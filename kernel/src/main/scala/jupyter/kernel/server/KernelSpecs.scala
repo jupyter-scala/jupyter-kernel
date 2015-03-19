@@ -9,6 +9,8 @@ import socket.zmq.ZMQKernel
 
 import argonaut._, Argonaut._
 
+import acyclic.file
+
 class KernelSpecs {
   private val _kernelsLock = new AnyRef
   private var _kernels = Map.empty[String, (KernelInfo, Kernel)]

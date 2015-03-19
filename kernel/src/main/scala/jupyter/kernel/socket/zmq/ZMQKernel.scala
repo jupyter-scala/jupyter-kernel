@@ -8,10 +8,12 @@ import java.net.{ServerSocket, InetAddress}
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import protocol._
-import argonaut._, Argonaut._, Shapeless._
+import argonaut._, Argonaut._
 import scalaz.\/
 
 import scala.sys.process._
+
+import acyclic.file
 
 object ZMQKernel extends LazyLogging {
   def newConnection(): Connection = {
@@ -94,7 +96,7 @@ object ZMQKernel extends LazyLogging {
             (c, connectionFile)
           }
           _ <- \/.fromTryCatchNonFatal(launchKernel(x._2))
-          socket <- x._1.start(isServer = true, identity = Some(kernelId))
+          socket <- ZMQMessageSocket.start(x._1, isServer = true, identity = Some(kernelId))
         } yield socket
     }
 }

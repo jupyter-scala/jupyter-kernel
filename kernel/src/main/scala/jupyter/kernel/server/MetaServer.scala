@@ -6,10 +6,12 @@ import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import socket.zmq.{ZMQMessageSocket, ZMQKernel}
 
-import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }, Shapeless._
+import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 import protocol.{ Meta => MetaProtocol, _ }, Formats._
 
 import scalaz.\/
+
+import acyclic.file
 
 object MetaServer extends LazyLogging {
   def handler(
@@ -23,7 +25,7 @@ object MetaServer extends LazyLogging {
           val c =
             for {
               connection <- \/.fromTryCatchNonFatal(ZMQKernel.newConnection())
-              kernelSocket <- connection.start(isServer = false, identity = Some(kernelId))
+              kernelSocket <- ZMQMessageSocket.start(connection, isServer = false, identity = Some(kernelId))
               _ <- \/.fromTryCatchNonFatal(launchKernel(kernelSocket))
             } yield connection
 

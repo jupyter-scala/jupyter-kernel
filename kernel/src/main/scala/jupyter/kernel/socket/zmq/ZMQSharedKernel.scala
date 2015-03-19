@@ -4,9 +4,12 @@ package zmq
 
 import java.io.File
 
-import argonaut._, Argonaut._, Shapeless._
+import argonaut._, Argonaut._
 import com.typesafe.scalalogging.slf4j.LazyLogging
+import jupyter.kernel.protocol.{ Connection, Formats }, Formats._
 import scalaz.\/
+
+import acyclic.file
 
 class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: String) extends SocketKernel with LazyLogging {
   import ZMQKernel._
@@ -31,6 +34,6 @@ class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: S
   def socket(classLoader: Option[ClassLoader]) =
     for {
       c <- connection
-      socket <- c.start(isServer = true, identity = Some(kernelId))
+      socket <- ZMQMessageSocket.start(c, isServer = true, identity = Some(kernelId))
     } yield socket
 }

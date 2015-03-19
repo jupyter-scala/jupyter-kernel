@@ -7,13 +7,15 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 import interpreter.{InterpreterHandler, Interpreter}
 import protocol._, Formats._, Output.ConnectReply
 
-import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }, Shapeless._
+import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
+
+import acyclic.file
 
 object InterpreterServer extends LazyLogging {
   private def sendStatus(send: (Channel, Message) => Unit, parentHeader: Option[Header], state: ExecutionState): Unit =
     send(
       Channel.Publish,
-      Message(ParsedMessage(
+      ParsedMessage(
         "status" :: Nil,
         Header(msg_id=NbUUID.randomUUID(),
           username="scala_kernel",
@@ -25,7 +27,7 @@ object InterpreterServer extends LazyLogging {
         Map.empty,
         Output.Status(
           execution_state=state)
-      ))
+      ).toMessage
     )
 
   private def sendStarting(send: (Channel, Message) => Unit, parentHeader: Option[Header]) =

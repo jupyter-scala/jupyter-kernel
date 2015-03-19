@@ -7,9 +7,11 @@ import java.io.File
 
 import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import protocol._
-import argonaut._, Argonaut._, Shapeless._
+import protocol._, Formats._
+import argonaut._, Argonaut._
 import scalaz.{\/-, -\/, \/}
+
+import acyclic.file
 
 object ZMQMetaKernel {
   def apply(metaConnectionFile: File, kernelId: String, keepAlive: Boolean): SocketKernel = new SocketKernel with LazyLogging {
@@ -19,7 +21,7 @@ object ZMQMetaKernel {
           lines <- \/.fromTryCatchNonFatal(scala.io.Source.fromFile(metaConnectionFile).mkString)
           c <- lines.decodeEither[Connection].leftMap(s => new Exception(s"Error while reading ${metaConnectionFile.getAbsolutePath}: $s"))
           _ <- \/.fromTryCatchNonFatal(preStart(metaConnectionFile))
-          socket <- c.start(isServer = true, identity = Some(kernelId))
+          socket <- ZMQMessageSocket.start(c, isServer = true, identity = Some(kernelId))
         } yield socket
 
       if (keepAlive) {
@@ -42,13 +44,13 @@ object ZMQMetaKernel {
         try {
           for {
             _ <- \/.fromTryCatchNonFatal {
-              meta.send(Channel.Requests, Message(ParsedMessage(
+              meta.send(Channel.Requests, ParsedMessage(
                 Nil,
                 Header(NbUUID.randomUUID(), "", NbUUID.randomUUID() /* FIXME*/, "meta_kernel_start_request", Protocol.versionStrOpt),
                 None,
                 Map.empty,
                 Meta.MetaKernelStartRequest()
-              )))
+              ).toMessage)
             }
             rawReply <- meta.receive(Channel.Requests).leftMap(s => new Exception(s"Receiving message: $s"))
             msg <- rawReply.decode.flatMap { msg =>
@@ -58,7 +60,7 @@ object ZMQMetaKernel {
               }
             } .leftMap(s => new Exception(s"Decoding message (meta): $s"))
             connection <- \/.fromEither(msg.connection) .leftMap(s => new Exception(s"From kernel (meta): $s"))
-            socket <- connection.start(isServer = true, identity = Some(kernelId))
+            socket <- ZMQMessageSocket.start(connection, isServer = true, identity = Some(kernelId))
           } yield socket
         } finally {
           if (!keepAlive) meta.close()

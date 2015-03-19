@@ -1,10 +1,12 @@
 package jupyter
 package kernel
 
-import argonaut._, Argonaut.{ EitherDecodeJson => _, _ }, Shapeless._
+import argonaut._, Argonaut.{ EitherDecodeJson => _, _ }
 import protocol._, Formats._
 
 import scalaz.{-\/, \/}
+
+import acyclic.file
 
 case class Message(
   idents: List[String],
@@ -91,13 +93,6 @@ case class Message(
    """.stripMargin
 
   def decode: String \/ ParsedMessage[_] = {
-    // Why do we have to derive these manually?
-    implicit val d = DecodeJson.derive[InputOutput.CommOpen]
-    implicit val d1 = DecodeJson.derive[InputOutput.CommMsg]
-    implicit val d2 = DecodeJson.derive[InputOutput.CommClose]
-    implicit val d3 = DecodeJson.derive[Output.ExecuteResult]
-    implicit val d4 = DecodeJson.derive[Meta.MetaKernelStartReply]
-
     for {
       _header <- header.decodeEither[Header] orElse header.decodeEither[HeaderV4].map(_.toHeader)
       _parentHeader <- parentHeader.decodeEither[Option[Header]] orElse header.decodeEither[Option[HeaderV4]].map(_.map(_.toHeader))
@@ -137,15 +132,4 @@ case class Message(
       }
     } yield ParsedMessage(idents, _header, _parentHeader, _metaData, _content)
   }
-}
-
-object Message {
-  def apply[T: EncodeJson](msg: ParsedMessage[T]): Message =
-    Message(
-      msg.idents,
-      msg.header.asJson.nospaces,
-      msg.parent_header.fold("{}")(_.asJson.nospaces),
-      msg.metadata.asJson.nospaces,
-      msg.content.asJson.nospaces
-    )
 }

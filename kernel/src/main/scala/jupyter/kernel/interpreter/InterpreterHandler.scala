@@ -6,9 +6,11 @@ import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import protocol._, Formats._, Output.{LanguageInfo, ConnectReply}
 
-import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }, Shapeless._
+import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
 import scalaz.{\/-, -\/}
+
+import acyclic.file
 
 object InterpreterHandler extends LazyLogging {
   private def sendOk(send: (Channel, Message) => Unit, msg: ParsedMessage[_], executionCount: Int): Message =
@@ -67,7 +69,7 @@ object InterpreterHandler extends LazyLogging {
   private def sendStatus(send: (Channel, Message) => Unit, parentHeader: Option[Header], state: ExecutionState): Unit =
     send(
       Channel.Publish,
-      Message(ParsedMessage(
+      ParsedMessage(
         "status" :: Nil,
         Header(msg_id=NbUUID.randomUUID(),
           username="scala_kernel",
@@ -79,7 +81,7 @@ object InterpreterHandler extends LazyLogging {
         Map.empty,
         Output.Status(
           execution_state=state)
-      ))
+      ).toMessage
     )
 
   private def execute(send: (Channel, Message) => Unit, interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Message = {

@@ -1,6 +1,7 @@
 package jupyter.bridge
 
 import scala.runtime.ScalaRunTime.stringOf
+import acyclic.file
 
 sealed trait DisplayData {
   def data: Seq[(String, String)]

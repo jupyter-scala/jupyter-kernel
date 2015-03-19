@@ -5,14 +5,15 @@ package server
 import java.io.{PrintWriter, File}
 import java.lang.management.ManagementFactory
 import java.net.{InetAddress, ServerSocket}
-import argonaut._, Argonaut._, Shapeless._
+import argonaut._, Argonaut._
 import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import socket.zmq.{Connection, ZMQMessageSocket}
+import socket.zmq.ZMQMessageSocket
 import socket.SocketKernel
-import protocol.{Output, NbUUID}
+import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
 import interpreter.InterpreterKernel
 import scalaz._, Scalaz._
+import acyclic.file
 
 object Server extends LazyLogging {
   case class Options(
@@ -151,7 +152,7 @@ object Server extends LazyLogging {
             new Exception(s"Error while loading connection file: $err")
           }
       }
-      socket <- connection.start(isServer = false, identity = Some(kernelId)) .leftMap { err =>
+      socket <- ZMQMessageSocket.start(connection, isServer = false, identity = Some(kernelId)) .leftMap { err =>
         new Exception(s"Unable to open connection: $err", err)
       }
       _ <- {

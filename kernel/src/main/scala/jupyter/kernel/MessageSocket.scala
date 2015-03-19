@@ -5,6 +5,8 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 
 import scalaz.{-\/, \/, \/-}
 
+import acyclic.file
+
 // FIXME Switch to scalaz-stream
 trait MessageSocket {
   import MessageSocket.Channel
