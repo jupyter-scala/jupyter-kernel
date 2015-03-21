@@ -13,7 +13,7 @@ import scalaz.{\/-, -\/}
 import acyclic.file
 
 object InterpreterHandler extends LazyLogging {
-  private def sendOk(send: (Channel, Message) => Unit, msg: ParsedMessage[_], executionCount: Int): Message =
+  private def sendOk(msg: ParsedMessage[_], executionCount: Int): Message =
     msg.reply(
       "execute_reply",
       Output.ExecuteOkReply(
@@ -46,7 +46,7 @@ object InterpreterHandler extends LazyLogging {
     )
   }
 
-  private def sendAbort(send: (Channel, Message) => Unit, msg: ParsedMessage[_], executionCount: Int): Message =
+  private def sendAbort(msg: ParsedMessage[_], executionCount: Int): Message =
     msg.reply(
       "execute_reply",
       Output.ExecuteAbortReply(
@@ -90,7 +90,7 @@ object InterpreterHandler extends LazyLogging {
     val silent = content.silent || code.trim.endsWith(";")
 
     if (code.trim.isEmpty)
-      sendOk(send, msg, interpreter.executionCount)
+      sendOk(msg, interpreter.executionCount)
     else {
       send(
         Channel.Publish,
@@ -126,13 +126,13 @@ object InterpreterHandler extends LazyLogging {
               )
             )
 
-            sendOk(send, msg, interpreter.executionCount)
+            sendOk(msg, interpreter.executionCount)
 
           case _: Interpreter.Value if silent =>
-            sendOk(send, msg, interpreter.executionCount)
+            sendOk(msg, interpreter.executionCount)
 
           case Interpreter.NoValue =>
-            sendOk(send, msg, interpreter.executionCount)
+            sendOk(msg, interpreter.executionCount)
 
           case exc @ Interpreter.Exception(name, message, _, _) =>
             sendError(send, msg, Output.Error(interpreter.executionCount, name, message, exc.traceBack))
@@ -144,42 +144,13 @@ object InterpreterHandler extends LazyLogging {
             sendError(send, msg, interpreter.executionCount, "incomplete")
 
           case Interpreter.Cancelled =>
-            sendAbort(send, msg, interpreter.executionCount)
+            sendAbort(msg, interpreter.executionCount)
         }
       }
     }
   }
 
-  private def commonPrefix(xs: List[String]): String =
-    if (xs.isEmpty || xs.contains(""))
-      ""
-    else if (xs.tail.forall(_.head == xs.head.head))
-      "" + xs.head.head + commonPrefix(xs.map(_.tail))
-    else
-      ""
-
-  /** Find longest string that is a suffix of `head` and prefix of `tail`.
-    *
-    *  Example:
-    *
-    *    isInstance
-    *  x.is
-    *    ^^
-    *
-    *  >>> Util.suffixPrefix("x.is", "isInstance")
-    *  "is"
-    */
-  private def suffixPrefix(head: String, tail: String): String = {
-    def helper(p: String): String =
-      if (tail startsWith p)
-        p
-      else
-        helper(p drop 1)
-
-    helper(head)
-  }
-
-  private def complete(send: (Channel, Message) => Unit, interpreter: Interpreter, msg: ParsedMessage[Input.CompleteRequest]): Message = {
+  private def complete(interpreter: Interpreter, msg: ParsedMessage[Input.CompleteRequest]): Message = {
     val pos = Some(msg.content.cursor_pos).filter(_ >= 0) getOrElse msg.content.code.length
     val (i, matches) = interpreter.complete(msg.content.code, pos)
 
@@ -194,7 +165,7 @@ object InterpreterHandler extends LazyLogging {
     )
   }
 
-  private def kernelInfo(send: (Channel, Message) => Unit, msg: ParsedMessage[Input.KernelInfoRequest]): Message =
+  private def kernelInfo(msg: ParsedMessage[Input.KernelInfoRequest]): Message =
     msg.reply(
       "kernel_info_reply",
       Output.KernelInfoReply(
@@ -208,7 +179,7 @@ object InterpreterHandler extends LazyLogging {
       )
     )
 
-  private def connect(send: (Channel, Message) => Unit, connectReply: ConnectReply, msg: ParsedMessage[Input.ConnectRequest]): Message =
+  private def connect(connectReply: ConnectReply, msg: ParsedMessage[Input.ConnectRequest]): Message =
     msg.reply(
       "connect_reply",
       connectReply
@@ -223,16 +194,16 @@ object InterpreterHandler extends LazyLogging {
       )
     )
     Console.err println s"Shutting down kernel"
-    sys.exit() // Maybe handle that with a callback
+    sys.exit() // FIXME Handle that with a callback
   }
 
-  private def objectInfo(send: (Channel, Message) => Unit, msg: ParsedMessage[Input.ObjectInfoRequest]): Message =
+  private def objectInfo(msg: ParsedMessage[Input.ObjectInfoRequest]): Message =
     msg.reply(
       "object_info_reply",
       Output.ObjectInfoNotFoundReply(name=msg.content.oname)
     )
 
-  private def history(send: (Channel, Message) => Unit, msg: ParsedMessage[Input.HistoryRequest]): Message =
+  private def history(msg: ParsedMessage[Input.HistoryRequest]): Message =
     msg.reply(
       "history_reply",
       Output.HistoryReply(history=Nil)
@@ -262,17 +233,17 @@ object InterpreterHandler extends LazyLogging {
             case ("execute_request", r: Input.ExecuteRequest) =>
               execute(send, interpreter, msg.copy(content = r))
             case ("complete_request", r: Input.CompleteRequest) =>
-              complete(send, interpreter, msg.copy(content = r))
+              complete(interpreter, msg.copy(content = r))
             case ("kernel_info_request", r: Input.KernelInfoRequest) =>
-              kernelInfo(send, msg.copy(content = r))
+              kernelInfo(msg.copy(content = r))
             case ("object_info_request", r: Input.ObjectInfoRequest) =>
-              objectInfo(send, msg.copy(content = r))
+              objectInfo(msg.copy(content = r))
             case ("connect_request", r: Input.ConnectRequest) =>
-              connect(send, connectReply: ConnectReply, msg.copy(content = r))
+              connect(connectReply: ConnectReply, msg.copy(content = r))
             case ("shutdown_request", r: Input.ShutdownRequest) =>
               shutdown(send, msg.copy(content = r))
             case ("history_request", r: Input.HistoryRequest) =>
-              history(send, msg.copy(content = r))
+              history(msg.copy(content = r))
 
             // FIXME These are not handled well
             case ("comm_open", r: InputOutput.CommOpen) =>
