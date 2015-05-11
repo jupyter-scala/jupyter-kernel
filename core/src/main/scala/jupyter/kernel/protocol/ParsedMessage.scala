@@ -12,9 +12,13 @@ import scalaz.{\/-, -\/, \/}
 object Formats {
   import Shapeless._
 
-  implicit def d = DecodeJson.derive[InputOutput.CommOpen]
-  implicit def d1 = DecodeJson.derive[InputOutput.CommMsg]
-  implicit def d2 = DecodeJson.derive[InputOutput.CommClose]
+  implicit def commOpenDecodeJson = DecodeJson.derive[InputOutput.CommOpen]
+  implicit def commMsgDecodeJson = DecodeJson.derive[InputOutput.CommMsg]
+  implicit def commCloseDecodeJson = DecodeJson.derive[InputOutput.CommClose]
+  implicit def commOpenEncodeJson = EncodeJson.derive[InputOutput.CommOpen]
+  implicit def commMsgEncodeJson = EncodeJson.derive[InputOutput.CommMsg]
+  implicit def commCloseEncodeJson = EncodeJson.derive[InputOutput.CommClose]
+
   implicit def d3 = DecodeJson.derive[Output.ExecuteResult]
   implicit def d4 = DecodeJson.derive[Meta.MetaKernelStartReply]
 
@@ -371,21 +375,23 @@ object ParsedMessage {
 
 object InputOutput {
 
+  trait Comm
+
   case class CommOpen(
     comm_id: NbUUID,
     target_name: String,
     data: Json
-  )
+  ) extends Comm
 
   case class CommMsg(
     comm_id: NbUUID,
     data: Json
-  )
+  ) extends Comm
 
   case class CommClose(
     comm_id: NbUUID,
     data: Json
-  )
+  ) extends Comm
 
 }
 

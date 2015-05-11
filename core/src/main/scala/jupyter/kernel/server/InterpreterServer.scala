@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import interpreter.{InterpreterHandler, Interpreter}
+import jupyter.kernel.protocol.InputOutput.CommOpen
 import jupyter.kernel.stream.Streams
 import protocol._, Formats._, jupyter.kernel.protocol.Output.ConnectReply
 
@@ -47,6 +48,10 @@ object InterpreterServer extends LazyLogging {
             logger debug s"Error while handling message: $err"
             Task.now(())
         }.run
+    }
+
+    interpreter.openSentHandler { (id, target, data) =>
+      reqQueue enqueueOne ParsedMessage(Nil, ???, None, Map.empty, CommOpen(id, target, data)).toMessage
     }
 
     Task.gatherUnordered(Seq(

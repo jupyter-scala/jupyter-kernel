@@ -1,7 +1,9 @@
 package jupyter
 package kernel.interpreter
 
+import argonaut.Json
 import jupyter.kernel.Kernel
+import jupyter.kernel.protocol.NbUUID
 import jupyter.kernel.protocol.Output.LanguageInfo
 
 import scala.runtime.ScalaRunTime._
@@ -34,11 +36,62 @@ object DisplayData {
   }
 }
 
-trait Interpreter {
+trait Interpreter extends InterpreterComm {
   def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean): Interpreter.Result
   def complete(code: String, pos: Int): (Int, Seq[String])
   def executionCount: Int
   def languageInfo: LanguageInfo
+}
+
+trait InterpreterComm {
+  def openReceivedHandler(handler: (NbUUID, String, Json) => Unit): Unit
+  def openSentHandler(handler: (NbUUID, String, Json) => Unit): Unit
+  def msgReceivedHandler(handler: (NbUUID, Json) => Unit): Unit
+  def msgSentHandler(handler: (NbUUID, Json) => Unit): Unit
+  def closeReceivedHandler(handler: (NbUUID, Json) => Unit): Unit
+  def closeSentHandler(handler: (NbUUID, Json) => Unit): Unit
+
+  def openReceived(id: NbUUID, target: String, data: Json): Unit
+  def sendOpen(id: NbUUID, target: String, data: Json): Unit
+  def msgReceived(id: NbUUID, data: Json): Unit
+  def sendMsg(id: NbUUID, data: Json): Unit
+  def closeReceived(id: NbUUID, data: Json): Unit
+  def sendClose(id: NbUUID, data: Json): Unit
+}
+
+trait InterpreterCommImpl extends InterpreterComm {
+  private var openReceivedHandlers = Seq.empty[(NbUUID, String, Json) => Unit]
+  private var openSentHandlers = Seq.empty[(NbUUID, String, Json) => Unit]
+  private var msgReceivedHandlers = Seq.empty[(NbUUID, Json) => Unit]
+  private var msgSentHandlers = Seq.empty[(NbUUID, Json) => Unit]
+  private var closeReceivedHandlers = Seq.empty[(NbUUID, Json) => Unit]
+  private var closeSentHandlers = Seq.empty[(NbUUID, Json) => Unit]
+
+  def openReceivedHandler(handler: (NbUUID, String, Json) => Unit): Unit =
+    openReceivedHandlers = openReceivedHandlers :+ handler
+  def openSentHandler(handler: (NbUUID, String, Json) => Unit): Unit =
+    openSentHandlers = openSentHandlers :+ handler
+  def msgReceivedHandler(handler: (NbUUID, Json) => Unit): Unit =
+    msgReceivedHandlers = msgReceivedHandlers :+ handler
+  def msgSentHandler(handler: (NbUUID, Json) => Unit): Unit =
+    msgSentHandlers = msgSentHandlers :+ handler
+  def closeReceivedHandler(handler: (NbUUID, Json) => Unit): Unit =
+    closeReceivedHandlers = closeReceivedHandlers :+ handler
+  def closeSentHandler(handler: (NbUUID, Json) => Unit): Unit =
+    closeSentHandlers = closeSentHandlers :+ handler
+
+  def openReceived(id: NbUUID, target: String, data: Json): Unit =
+    openReceivedHandlers.foreach(_(id, target, data))
+  def sendOpen(id: NbUUID, target: String, data: Json): Unit =
+    openSentHandlers.foreach(_(id, target, data))
+  def msgReceived(id: NbUUID, data: Json): Unit =
+    msgReceivedHandlers.foreach(_(id, data))
+  def sendMsg(id: NbUUID, data: Json): Unit =
+    msgSentHandlers.foreach(_(id, data))
+  def closeReceived(id: NbUUID, data: Json): Unit =
+    closeReceivedHandlers.foreach(_(id, data))
+  def sendClose(id: NbUUID, data: Json): Unit =
+    closeSentHandlers.foreach(_(id, data))
 }
 
 object Interpreter {

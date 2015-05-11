@@ -16,7 +16,7 @@ import utest._
 
 object Helpers {
 
-  def echoInterpreter(): Interpreter = new Interpreter {
+  def echoInterpreter(): Interpreter = new Interpreter with InterpreterCommImpl {
     def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean) =
       if (line.isEmpty) Incomplete
       else {

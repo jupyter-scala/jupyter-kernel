@@ -169,15 +169,6 @@ object InterpreterHandler {
       Output.HistoryReply(history=Nil)
     )
 
-  private def commOpen(msg: ParsedMessage[InputOutput.CommOpen]): Unit =
-    println(msg)
-
-  private def commMsg(msg: ParsedMessage[InputOutput.CommMsg]): Unit =
-    println(msg)
-
-  private def commClose(msg: ParsedMessage[InputOutput.CommClose]): Unit =
-    println(msg)
-
   private def single(m: Message) = Process.emit(\/-(Channel.Requests -> m))
 
   def apply(interpreter: Interpreter, connectReply: ConnectReply, msg: Message): Process[Task, String \/ (Channel, Message)] =
@@ -208,14 +199,15 @@ object InterpreterHandler {
 
           // FIXME These are not handled well
           case ("comm_open", r: InputOutput.CommOpen) =>
-            commOpen(parsedMessage.copy(content = r))
-            single(parsedMessage.reply("bad_request", Json.obj())) // ???
+            // FIXME IPython messaging spec says: if target_name is empty, we should immediately reply with comm_close
+            interpreter.openReceived(r.comm_id, r.target_name, r.data)
+            Process.halt
           case ("comm_msg", r: InputOutput.CommMsg) =>
-            commMsg(parsedMessage.copy(content = r))
-            single(parsedMessage.reply("bad_request", Json.obj())) // ???
+            interpreter.msgReceived(r.comm_id, r.data)
+            Process.halt
           case ("comm_close", r: InputOutput.CommClose) =>
-            commClose(parsedMessage.copy(content = r))
-            single(parsedMessage.reply("bad_request", Json.obj())) // ???
+            interpreter.closeReceived(r.comm_id, r.data)
+            Process.halt
 
           case _ =>
             Process.emit(-\/(s"Unrecognized message: $parsedMessage ($msg)"))
