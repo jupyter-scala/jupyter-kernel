@@ -1,12 +1,11 @@
 import language.implicitConversions
 import sbt._, Keys._
 import xerial.sbt.Pack._
-import sbtbuildinfo.Plugin._
 import sbtrelease.ReleasePlugin._
 import com.typesafe.sbt.pgp.PgpKeys
 
 object JupyterBuild extends Build {
-  private val publishSettings = xerial.sbt.Sonatype.sonatypeSettings ++ com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSettings ++ Seq(
+  private val publishSettings = com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSettings ++ Seq(
     publishMavenStyle := true,
     publishTo := {
       val nexus = "https://oss.sonatype.org/"
@@ -43,11 +42,16 @@ object JupyterBuild extends Build {
     crossScalaVersions := Seq("2.10.5", "2.11.6"),
     scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature"),
     resolvers ++= Seq(
-      "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
       Resolver.sonatypeRepo("releases"),
       Resolver.sonatypeRepo("snapshots"),
       "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
     ),
+    libraryDependencies ++= {
+      if (scalaVersion.value startsWith "2.10.")
+        Seq(compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full))
+      else
+        Seq()
+    },
     scalacOptions += "-target:jvm-1.7",
     ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
     ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
@@ -55,58 +59,28 @@ object JupyterBuild extends Build {
 
   lazy val core = Project(id = "core", base = file("core"))
     .settings(commonSettings: _*)
-    .settings(buildInfoSettings: _*)
-    .settings(
-      sourceGenerators in Compile <+= buildInfo,
-      buildInfoKeys := Seq[BuildInfoKey](
-        name,
-        version,
-        scalaVersion,
-        sbtVersion
-      ),
-      buildInfoPackage := "jupyter.kernel"
-    )
     .settings(
       name := "jupyter-kernel",
       libraryDependencies ++= Seq(
         "com.typesafe" % "config" % "1.2.1",
-        "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "0.1.0",
+        "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "0.2.0-SNAPSHOT",
         "org.zeromq" % "jeromq" % "0.3.4",
         "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
         "org.scalaz.stream" %% "scalaz-stream" % "0.6a"
-      ),
-      libraryDependencies ++= {
-        if (scalaVersion.value startsWith "2.10.") Seq(
-          "com.chuusai" % "shapeless_2.10.4" % "2.1.0", // FIXME Switch to _2.10.5 once it is published
-          compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
-        ) else Seq(
-          "com.chuusai" %% "shapeless" % "2.1.0"
-        )
-      },
-      unmanagedSourceDirectories in Compile +=
-        (sourceDirectory in Compile).value / s"scala-${scalaBinaryVersion.value}"
+      )
     )
 
   lazy val cli = Project(id = "cli", base = file("cli"))
+    .dependsOn(core)
     .settings(commonSettings: _*)
-    .settings(conscript.Harness.conscriptSettings: _*)
     .settings(packAutoSettings ++ publishPackTxzArchive ++ publishPackZipArchive: _*)
     .settings(
       name := "jupyter-meta-kernel",
       libraryDependencies ++= Seq(
         "com.github.alexarchambault" %% "case-app" % "0.2.1",
         "ch.qos.logback" % "logback-classic" % "1.0.13"
-      ),
-      libraryDependencies ++= {
-        if (scalaVersion.value startsWith "2.10.")
-          Seq(
-            compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
-          )
-        else
-          Seq()
-      }
+      )
     )
-    .dependsOn(core)
 
   lazy val root = Project(id = "jupyter-kernel", base = file("."))
     .settings(commonSettings: _*)
