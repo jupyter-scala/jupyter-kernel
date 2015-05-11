@@ -56,17 +56,6 @@ object JupyterBuild extends Build {
     libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.2" % "provided"
   ) ++ releaseSettings ++ publishSettings
 
-  lazy val bridge = Project(id = "bridge", base = file("bridge"))
-    .settings(commonSettings: _*)
-    .settings(buildInfoSettings: _*)
-    .settings(
-      name := "jupyter-bridge",
-      libraryDependencies ++= Seq(
-        "org.scala-lang" % "scala-reflect" % scalaVersion.value
-      ),
-      unmanagedSourceDirectories in Compile += (sourceDirectory in Compile).value / s"scala-${scalaBinaryVersion.value}"
-    )
-
   lazy val kernel = Project(id = "kernel", base = file("kernel"))
     .settings(commonSettings: _*)
     .settings(buildInfoSettings: _*)
@@ -100,7 +89,6 @@ object JupyterBuild extends Build {
       unmanagedSourceDirectories in Compile +=
         (sourceDirectory in Compile).value / s"scala-${scalaBinaryVersion.value}"
     )
-    .dependsOn(bridge)
 
   lazy val metaKernel = Project(id = "meta-kernel", base = file("meta-kernel"))
     .settings(commonSettings: _*)
@@ -125,5 +113,5 @@ object JupyterBuild extends Build {
 
   lazy val root = Project(id = "jupyter-kernel", base = file("."))
     .settings(commonSettings: _*)
-    .aggregate(bridge, kernel, metaKernel)
+    .aggregate(kernel, metaKernel)
 }
