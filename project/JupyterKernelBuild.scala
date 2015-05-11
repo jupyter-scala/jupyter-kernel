@@ -4,7 +4,7 @@ import xerial.sbt.Pack._
 import sbtrelease.ReleasePlugin._
 import com.typesafe.sbt.pgp.PgpKeys
 
-object JupyterBuild extends Build {
+object JupyterKernelBuild extends Build {
   private val publishSettings = com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSettings ++ Seq(
     publishMavenStyle := true,
     publishTo := {
@@ -33,13 +33,16 @@ object JupyterBuild extends Build {
         case _ =>
           Credentials(Path.userHome / ".ivy2" / ".credentials")
       }
-    }
-  )
+    },
+    scalacOptions += "-target:jvm-1.7",
+    crossScalaVersions := Seq("2.10.5", "2.11.6"),
+    ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
+    ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
+  ) ++ releaseSettings
 
   private val commonSettings = Seq(
     organization := "com.github.alexarchambault.jupyter",
     scalaVersion := "2.11.6",
-    crossScalaVersions := Seq("2.10.5", "2.11.6"),
     scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature"),
     resolvers ++= Seq(
       Resolver.sonatypeRepo("releases"),
@@ -51,14 +54,18 @@ object JupyterBuild extends Build {
         Seq(compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full))
       else
         Seq()
-    },
-    scalacOptions += "-target:jvm-1.7",
-    ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
-    ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
-  ) ++ releaseSettings ++ publishSettings
+    }
+  ) ++ publishSettings
+
+  private lazy val testSettings = Seq(
+    libraryDependencies ++= Seq(
+      "com.lihaoyi" %% "utest" % "0.3.0" % "test"
+    ),
+    testFrameworks += new TestFramework("utest.runner.Framework")
+  )
 
   lazy val core = Project(id = "core", base = file("core"))
-    .settings(commonSettings: _*)
+    .settings(commonSettings ++ testSettings: _*)
     .settings(
       name := "jupyter-kernel",
       libraryDependencies ++= Seq(
