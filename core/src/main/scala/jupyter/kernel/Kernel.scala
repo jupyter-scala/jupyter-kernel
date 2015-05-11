@@ -2,7 +2,6 @@ package jupyter
 package kernel
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, _ }
-import jupyter.kernel.protocol.Output.LanguageInfo
 import protocol._, Formats._
 
 import scalaz.{-\/, \/}

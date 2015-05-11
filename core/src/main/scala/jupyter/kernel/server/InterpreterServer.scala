@@ -7,7 +7,7 @@ import java.util.concurrent.ExecutorService
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import interpreter.{InterpreterHandler, Interpreter}
 import jupyter.kernel.stream.Streams
-import protocol._, Formats._, jupyter.kernel.protocol.Output.{LanguageInfo, ConnectReply}
+import protocol._, Formats._, jupyter.kernel.protocol.Output.ConnectReply
 
 import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.async

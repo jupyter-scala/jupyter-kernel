@@ -8,7 +8,6 @@ import java.net.{InetAddress, ServerSocket}
 import java.util.concurrent.ExecutorService
 import argonaut._, Argonaut._
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.kernel.protocol.Output.LanguageInfo
 import jupyter.kernel.stream.{StreamKernel, Streams}
 import jupyter.kernel.stream.zmq.ZMQStreams
 import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
@@ -66,7 +65,6 @@ object Server extends LazyLogging {
     kernel: Kernel,
     streams: Streams,
     connection: Connection,
-    languageInfo: LanguageInfo,
     classLoader: Option[ClassLoader]
   )(implicit es: ExecutorService): Throwable \/ Task[Unit] =
     kernel match {
@@ -97,7 +95,6 @@ object Server extends LazyLogging {
   def apply(
     kernel: Kernel,
     kernelId: String,
-    languageInfo: LanguageInfo,
     options: Server.Options = Server.Options(),
     classLoaderOption: Option[ClassLoader] = None
   )(implicit es: ExecutorService): Throwable \/ (File, Task[Unit]) =
@@ -138,8 +135,8 @@ object Server extends LazyLogging {
         \/-(())
       }
       t <- {
-        if (options.meta) \/.fromTryCatchNonFatal(MetaServer(streams, launch(kernel, _, connection, languageInfo, classLoaderOption), kernelId))
-        else launch(kernel, streams, connection, languageInfo, classLoaderOption)
+        if (options.meta) \/.fromTryCatchNonFatal(MetaServer(streams, launch(kernel, _, connection, classLoaderOption), kernelId))
+        else launch(kernel, streams, connection, classLoaderOption)
       }.leftMap(err => new Exception(s"Launching kernel: $err", err))
     } yield (connFile, t)
 }
