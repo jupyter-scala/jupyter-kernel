@@ -1,22 +1,24 @@
 package jupyter.kernel.interpreter
 
-import jupyter.kernel.interpreter.Interpreter.Error
-import jupyter.kernel.{Message, Channel}, Channel._
+import jupyter.kernel.{ Message, Channel }, Channel._
 import jupyter.kernel.interpreter.DisplayData.RawData
-import jupyter.kernel.protocol.Input.{ExecuteRequest, KernelInfoRequest, ConnectRequest}
+import jupyter.kernel.protocol.Input.{ ExecuteRequest, KernelInfoRequest, ConnectRequest }
 import jupyter.kernel.protocol.Output.{ Error => _, _ }
 import jupyter.kernel.protocol._
 import jupyter.kernel.protocol.NbUUID.randomUUID
 import jupyter.kernel.protocol.Formats.{ inputConnectRequestEncodeJson, inputKernelInfoRequestEncodeJson, inputExecuteRequestEncodeJson }
-import Interpreter._
-import utest._
+import jupyter.kernel.interpreter.Interpreter._
+
 import scala.util.Random.{ nextInt => randomInt }
 import scalaz.Scalaz.ToEitherOps
-import scalaz.{-\/, \/}
+import scalaz.{ -\/, \/ }
+import argonaut.EncodeJson
+
+import utest._
 
 object InterpreterHandlerTests extends TestSuite {
 
-  val echoInterpreter: Interpreter = new Interpreter {
+  def echoInterpreter(): Interpreter = new Interpreter {
     def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean) =
       if (line.isEmpty) Incomplete
       else {
@@ -27,7 +29,7 @@ object InterpreterHandlerTests extends TestSuite {
     var executionCount = 0
   }
 
-  def parse(m: String \/ (Channel, Message), id: NbUUID): String \/ (Channel, ParsedMessage[_]) =
+  def parse(m: String \/ (Channel, Message), id: NbUUID = randomUUID()): String \/ (Channel, ParsedMessage[_]) =
     m.flatMap{ case (c, msg) =>
       msg.decode.map(m => c -> m.copy(header = m.header.copy(msg_id = id)))
     }
@@ -36,9 +38,6 @@ object InterpreterHandlerTests extends TestSuite {
 
   val languageInfo = LanguageInfo("echo", "x-echo", "echo", "text/x-echo")
 
-  val idents = List.empty[String]
-  val userName = "user"
-  val commonId = randomUUID()
   val version = Some("5.0")
 
   def assertCmp[T](resp: Seq[T], exp: Seq[T], pos: Int = 0): Unit = {
@@ -46,9 +45,11 @@ object InterpreterHandlerTests extends TestSuite {
       case (Nil, Nil) =>
       case (r :: rt, e :: et) =>
         try assert(r == e)
-        catch { case e: utest.AssertionError =>
+        catch { case ex: utest.AssertionError =>
           println(s"At pos $pos:")
-          throw e
+          println(s"Response: $r")
+          println(s"Expected: $e")
+          throw ex
         }
 
         assertCmp(rt, et, pos + 1)
@@ -63,9 +64,47 @@ object InterpreterHandlerTests extends TestSuite {
     }
   }
 
+  case class Req[T: EncodeJson](msgType: String, t: T) {
+    def apply(idents: List[String], userName: String, sessionId: NbUUID): (Message, Header) = {
+      val msg = ParsedMessage(
+        idents, Header(randomUUID(), userName, sessionId, msgType, version), None, Map.empty,
+        t
+      )
+
+      (msg, msg.header)
+    }
+  }
+
+  sealed trait Reply {
+    def apply(defaultIdents: List[String], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header): String \/ (Channel, ParsedMessage[_])
+  }
+  case class ReqReply[T](msgType: String, t: T) extends Reply {
+    def apply(defaultIdents: List[String], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header) =
+      (Requests -> ParsedMessage(defaultIdents, Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t)).right
+  }
+  case class PubReply[T](idents: List[String], msgType: String, t: T) extends Reply {
+    def apply(defaultIdents: List[String], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header) =
+      (Publish -> ParsedMessage(idents, Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t)).right
+  }
+
+  def session(msgs: (Req[_], Seq[Reply])*) = {
+    val intp = echoInterpreter()
+    val idents = List.empty[String]
+    val userName = "user"
+    val sessionId = randomUUID()
+    val commonId = randomUUID()
+    for (((req, replies), idx) <- msgs.zipWithIndex) {
+      val (msg, msgHdr) = req(idents, userName, sessionId)
+      val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr))
+      val response = InterpreterHandler(intp, connectReply, languageInfo, msg).runLog.run.map(parse(_, commonId))
+      assertCmp(response, expected)
+    }
+  }
+
   val tests = TestSuite{
     'malformedHeader{
-      val response = InterpreterHandler(echoInterpreter, connectReply, languageInfo, Message(idents, "{", "", "{}", "{}")).runLog.run.map(parse(_, commonId))
+      val intp = echoInterpreter()
+      val response = InterpreterHandler(intp, connectReply, languageInfo, Message(Nil, "{", "", "{}", "{}")).runLog.run.map(parse(_))
       assertMatch(response) {
         case IndexedSeq(-\/(_)) =>
       }
@@ -73,69 +112,39 @@ object InterpreterHandlerTests extends TestSuite {
 
     'emptyRequest{
       // FIXME Provide a *real* header
-      val response = InterpreterHandler(echoInterpreter, connectReply, languageInfo, Message(idents, "{}", "", "{}", "{}")).runLog.run.map(parse(_, commonId))
+      val intp = echoInterpreter()
+      val response = InterpreterHandler(intp, connectReply, languageInfo, Message(Nil, "{}", "", "{}", "{}")).runLog.run.map(parse(_))
       assertMatch(response) {
         case IndexedSeq(-\/(_)) =>
       }
     }
 
     'connectReply{
-      val sessionId = randomUUID()
-
-      val req = ParsedMessage(
-        idents, Header(randomUUID(), userName, sessionId, "connect_request", version), None, Map.empty,
-        ConnectRequest()
+      session(
+        Req("connect_request", ConnectRequest()) -> Seq(
+          ReqReply("connect_reply", connectReply)
+        )
       )
-
-      val expected = Seq(
-        (Requests -> ParsedMessage(idents, Header(commonId, userName, sessionId, "connect_reply", version), Some(req.header), Map.empty, connectReply)).right
-      )
-
-      val response = InterpreterHandler(echoInterpreter, connectReply, languageInfo, req).runLog.run.map(parse(_, commonId))
-
-      assertCmp(response, expected)
     }
 
     'kernelInfo{
-      val sessionId = randomUUID()
-
-      val req = ParsedMessage(
-        idents, Header(randomUUID(), userName, sessionId, "kernel_info_request", version), None, Map.empty,
-        KernelInfoRequest()
+      session(
+        Req("kernel_info_request", KernelInfoRequest()) -> Seq(
+          ReqReply("kernel_info_reply", KernelInfoReply("5.0", languageInfo))
+        )
       )
-
-      val expected = Seq(
-        (Requests -> ParsedMessage(idents, Header(commonId, userName, sessionId, "kernel_info_reply", version), Some(req.header), Map.empty, KernelInfoReply("5.0", languageInfo))).right
-      )
-
-      val response = InterpreterHandler(echoInterpreter, connectReply, languageInfo, req).runLog.run.map(parse(_, commonId))
-
-      assertCmp(response, expected)
     }
 
     'execute{
-      val sessionId = randomUUID()
-
-      val req = ParsedMessage(
-        idents, Header(randomUUID(), userName, sessionId, "execute_request", version), None, Map.empty,
-        ExecuteRequest("meh", silent = false, None, Map.empty, allow_stdin = false)
+      session(
+        Req("execute_request", ExecuteRequest("meh", silent = false, None, Map.empty, allow_stdin = false)) -> Seq(
+          PubReply(List("execute_input"), "execute_input", ExecuteInput("meh", 1)),
+          PubReply(List("status"), "status", Output.Status(ExecutionState.busy)),
+          PubReply(List("execute_result"), "execute_result", ExecuteResult(1, Map("text/plain" -> "meh"))),
+          ReqReply("execute_reply", ExecuteOkReply(1)),
+          PubReply(List("status"), "status", Output.Status(ExecutionState.idle))
+        )
       )
-
-      val expected = Seq(
-        (Publish -> ParsedMessage(List("execute_input"), Header(commonId, userName, sessionId, "execute_input", version), Some(req.header), Map.empty, ExecuteInput("meh", 1))).right,
-        (Publish -> ParsedMessage(List("status"), Header(commonId, userName, sessionId, "status", version), Some(req.header), Map.empty, Output.Status(ExecutionState.busy))).right,
-        (Publish -> ParsedMessage(List("execute_result"), Header(commonId, userName, sessionId, "execute_result", version), Some(req.header), Map.empty, ExecuteResult(1, Map("text/plain" -> "meh")))).right,
-        (Requests -> ParsedMessage(idents, Header(commonId, userName, sessionId, "execute_reply", version), Some(req.header), Map.empty, ExecuteOkReply(1))).right,
-        (Publish -> ParsedMessage(List("status"), Header(commonId, userName, sessionId, "status", version), Some(req.header), Map.empty, Output.Status(ExecutionState.idle))).right
-      )
-
-      val response = InterpreterHandler(echoInterpreter, connectReply, languageInfo, req).map{
-        case m =>
-          Console.err println s"Got $m"
-          m
-      }.runLog.run.map(parse(_, commonId))
-
-      assertCmp(response, expected)
     }
   }
 
