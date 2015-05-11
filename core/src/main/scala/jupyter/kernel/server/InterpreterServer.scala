@@ -49,7 +49,7 @@ object InterpreterServer extends LazyLogging {
             t.pub("comm_msg", InputOutput.CommMsg(id, parse(data)))
           case CommClose(data) =>
             t.pub("comm_close", InputOutput.CommClose(id, parse(data)))
-        })
+        }).run
 
         sentMessageHandlers.foreach(_(msg))
       }
@@ -70,11 +70,11 @@ object InterpreterServer extends LazyLogging {
 
     interpreter.publish(new Publish[ParsedMessage[_]] {
       def stdout(text: String)(implicit t: ParsedMessage[_]) =
-        t.pub("stream", Output.Stream(name = "stdout", text = text))
+        pubQueue.enqueueOne(t.pub("stream", Output.Stream(name = "stdout", text = text))).run
       def stderr(text: String)(implicit t: ParsedMessage[_]) =
-        t.pub("stream", Output.Stream(name = "stderr", text = text))
+        pubQueue.enqueueOne(t.pub("stream", Output.Stream(name = "stderr", text = text))).run
       def display(source: String, items: (String, String)*)(implicit t: ParsedMessage[_]) =
-        t.pub("display_data", Output.DisplayData(source = source, data = items.toMap, metadata = Map.empty))
+        pubQueue.enqueueOne(t.pub("display_data", Output.DisplayData(source = source, data = items.toMap, metadata = Map.empty))).run
 
       def comm(id: NbUUID) = CommImpl(id)
     })

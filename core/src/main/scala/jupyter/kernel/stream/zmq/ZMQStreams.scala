@@ -91,6 +91,8 @@ object ZMQStreams extends LazyLogging {
           Process.halt
         else
           Process.emit { msg: Message =>
+            logger debug s"Sending $msg on $channel"
+
             Task[Unit] {
               msg.idents foreach { s.send(_, ZMQ.SNDMORE) }
               s.send(DELIMITER, ZMQ.SNDMORE)
