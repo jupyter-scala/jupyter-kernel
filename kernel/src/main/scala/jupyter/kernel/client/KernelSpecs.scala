@@ -3,13 +3,8 @@ package client
 
 import java.io.File
 import scala.collection.mutable.ListBuffer
-import com.typesafe.config.{Config => Configg, _}
-
 import argonaut._, Argonaut._
-
 import stream.zmq.ZMQKernel
-import reflection.Module
-
 import acyclic.file
 
 class KernelSpecs {
@@ -17,18 +12,18 @@ class KernelSpecs {
   private var _kernels = Map.empty[String, (KernelInfo, Kernel)]
   private var _defaultKernel = Option.empty[String]
 
-  def addKernel(id: String, info: KernelInfo, kernel: Kernel): Unit = _kernelsLock.synchronized {
+  def add(id: String, info: KernelInfo, kernel: Kernel): Unit = _kernelsLock.synchronized {
     if (_kernels.isEmpty && _defaultKernel.isEmpty)
       _defaultKernel = Some(id)
 
     _kernels += id -> (info, kernel)
   }
 
-  def setDefaultKernel(id: String): Unit = _kernelsLock.synchronized {
+  def setDefault(id: String): Unit = _kernelsLock.synchronized {
     _defaultKernel = Some(id)
   }
 
-  def defaultKernel: Option[String] = _kernelsLock.synchronized {
+  def default: Option[String] = _kernelsLock.synchronized {
     _defaultKernel
       .orElse(Some(_kernels).filter(_.size == 1).map(_.head._1))
       .orElse(_kernels.map(_._1).filter(_ startsWith "scala").toList.sorted.lastOption)
@@ -40,8 +35,8 @@ class KernelSpecs {
     _kernels.get(id).map(_._2)
   }
 
-  def kernelName(id: String): Option[String] = _kernelsLock.synchronized {
-    _kernels.get(id).map(_._1.name)
+  def kernelInfo(id: String): Option[KernelInfo] = _kernelsLock.synchronized {
+    _kernels.get(id).map(_._1)
   }
 
   def kernels: Map[String, Kernel] = _kernelsLock.synchronized {
@@ -106,29 +101,5 @@ class KernelSpecs {
 
     // Erasing the previously defined kernels with the same ids here
     _kernels ++= kernels
-  }
-
-  def loadKernelsFromConfig(configName: String): Unit = {
-    val kernelConfig = ConfigFactory load configName
-
-    def configMap(c: Configg, path: String): Map[String, ConfigValue] = {
-      import scala.collection.JavaConverters._
-
-      if (c.hasPath(path))
-        (c.getObject(path): java.util.Map[String, ConfigValue]).asScala.toMap
-      else
-        Map.empty
-    }
-
-    val runtimeMirror = scala.reflect.runtime.universe runtimeMirror getClass.getClassLoader
-    import runtimeMirror.{reflectModule, staticModule}
-
-    for ((moduleId, v: ConfigObject) <- configMap(kernelConfig, "jupyter.modules")) {
-      val c = v.toConfig
-      val module = reflectModule(staticModule(c getString "module")).instance.asInstanceOf[Module]
-
-      for ((id, (kernel, info)) <- module.kernels)
-        addKernel(id, info, kernel)
-    }
   }
 }
