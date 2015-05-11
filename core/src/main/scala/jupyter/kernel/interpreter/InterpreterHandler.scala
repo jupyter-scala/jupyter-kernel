@@ -129,7 +129,7 @@ object InterpreterHandler {
       "complete_reply",
       Output.CompleteReply(
         matches = matches.toList,
-        cursor_start = pos - i,
+        cursor_start = i,
         cursor_end = pos,
         status = ExecutionStatus.ok
       )
