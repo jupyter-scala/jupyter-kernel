@@ -3,8 +3,9 @@ package kernel
 package meta
 
 import java.io.{ File, PrintWriter }
+import java.util.concurrent.Executors
 
-import socket.zmq.ZMQMetaKernel
+import stream.zmq.ZMQMetaKernel
 import server.{ ServerApp, ServerAppOptions }
 
 import caseapp._
@@ -15,7 +16,6 @@ case class JupyterMetaKernel(
   id: String,
   @ExtraName("N") name: String,
   @ExtraName("L") language: String,
-  @ExtraName("x") extension: List[String],
   keepAlive: Boolean,
   setup: Boolean
 ) extends App {
@@ -65,13 +65,14 @@ case class JupyterMetaKernel(
     sys exit 1
   }
 
+  implicit val es = Executors.newCachedThreadPool()
+
   ServerApp(
     id,
     ZMQMetaKernel(_connFile, id, keepAlive),
     KernelInfo(
       Some(name).filter(_.nonEmpty) getOrElse "Kernel",
-      Some(language).filter(_.nonEmpty) getOrElse "scala",
-      Some(extension).filter(_.nonEmpty) getOrElse List("snb")
+      Some(language).filter(_.nonEmpty) getOrElse "scala"
     ),
     progName,
     options,

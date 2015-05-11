@@ -2,59 +2,83 @@ package jupyter
 package kernel
 package server
 
+import java.util.concurrent.ExecutorService
+
 import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import socket.zmq.{ZMQMessageSocket, ZMQKernel}
+import jupyter.kernel.interpreter.{InterpreterHandler, Interpreter}
+import jupyter.kernel.protocol.Output.ConnectReply
+import jupyter.kernel.server.InterpreterServer._
+import jupyter.kernel.stream.KernelStreams
+import stream.zmq.{ZMQKernelStreams, ZMQKernel}
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 import protocol.{ Meta => MetaProtocol, _ }, Formats._
 
-import scalaz.\/
+import scalaz.{-\/, \/-, \/}
+import scalaz.concurrent.{Strategy, Task}
+import scalaz.stream.{async, Process}
 
 import acyclic.file
 
 object MetaServer extends LazyLogging {
   def handler(
-    send: (Channel, Message) => Unit,
-    launchKernel: ZMQMessageSocket => Unit,
-    kernelId: String
-  ): Message => Unit =
-    _.decode.map { msg =>
-      (msg.header.msg_type,  msg.content) match {
-        case ("meta_kernel_start_request", startRequest: MetaProtocol.MetaKernelStartRequest) =>
-          val c =
-            for {
-              connection <- \/.fromTryCatchNonFatal(ZMQKernel.newConnection())
-              kernelSocket <- ZMQMessageSocket.start(connection, isServer = false, identity = Some(kernelId))
-              _ <- \/.fromTryCatchNonFatal(launchKernel(kernelSocket))
-            } yield connection
+    launchKernel: KernelStreams => Unit,
+    kernelId: String,
+    baseMsg: Message
+  ): Process[Task, Message] =
+    baseMsg.decode match {
+      case -\/(err) =>
+        Process.halt
 
-          send(
-            Channel.Requests,
-            msg.reply(
-              "meta_kernel_start_reply",
-              MetaProtocol.MetaKernelStartReply(
-                c.leftMap(_.getMessage).toEither
+      case \/-(msg) =>
+        (msg.header.msg_type,  msg.content) match {
+          case ("meta_kernel_start_request", startRequest: MetaProtocol.MetaKernelStartRequest) =>
+            val c =
+              for {
+                connection <- \/.fromTryCatchNonFatal(ZMQKernel.newConnection())
+                streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(connection, isServer = false, identity = Some(kernelId)))
+                _ <- \/.fromTryCatchNonFatal(launchKernel(streams))
+              } yield connection
+
+            Process.emit(
+              msg.reply(
+                "meta_kernel_start_reply",
+                MetaProtocol.MetaKernelStartReply(
+                  c.leftMap(_.getMessage).toEither
+                )
               )
             )
-          )
-        case _ =>
-          throw new Exception(s"Unrecognized message: $msg")
-      }
+
+          case _ =>
+            logger error s"Unrecognized message: $msg"
+            Process.empty
+        }
     }
 
-  def start(
-    socket: MessageSocket,
-    launchKernel: ZMQMessageSocket => Unit,
+
+  def apply(
+    streams: KernelStreams,
+    launchKernel: KernelStreams => Unit,
     kernelId: String
-  ) = {
-    logger debug "Starting meta kernel event loop"
+  )(implicit
+    es: ExecutorService
+  ): Task[Unit] = {
+    implicit val strategy = Strategy.Executor
 
-    val mainLoop = MessageSocket.process(socket, handler(socket.send, launchKernel, kernelId))
+    val reqQueue = async.boundedQueue[Message]()
 
-    mainLoop setName "MetaRequestsEventLoop"
-    mainLoop.start()
+    val process: (String \/ Message) => Task[Unit] = {
+      case -\/(err) =>
+        logger debug s"Error while decoding message: $err"
+        Task.now(())
+      case \/-(msg) =>
+        handler(launchKernel, kernelId, msg).evalMap(reqQueue.enqueueOne).run
+    }
 
-    mainLoop
+    Task.gatherUnordered(Seq(
+      reqQueue.dequeue.to(streams.requestSink).run,
+      streams.requestMessages.evalMap(process).run
+    )).map(_ => ())
   }
 }

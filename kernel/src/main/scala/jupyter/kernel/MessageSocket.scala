@@ -23,10 +23,9 @@ object MessageSocket extends LazyLogging {
     case object   Publish extends Channel
     case object  Requests extends Channel
     case object   Control extends Channel 
-    case object     Stdin extends Channel
-    case object Heartbeat extends Channel // Make it internal to MessageSocket?
+    case object     Input extends Channel
 
-    val channels = List(Channel.Requests, Channel.Publish, Channel.Control, Channel.Stdin, Channel.Heartbeat)
+    val channels = List(Channel.Requests, Channel.Publish, Channel.Control, Channel.Input)
   }
 
   def transmit(channel: Channel)(from: MessageSocket, send: Message => Unit) =

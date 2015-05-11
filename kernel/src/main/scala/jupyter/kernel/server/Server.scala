@@ -5,15 +5,20 @@ package server
 import java.io.{PrintWriter, File}
 import java.lang.management.ManagementFactory
 import java.net.{InetAddress, ServerSocket}
+import java.util.concurrent.ExecutorService
 import argonaut._, Argonaut._
 import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
+import jupyter.kernel.stream.{StreamKernel, KernelStreams}
+import jupyter.kernel.stream.zmq.ZMQKernelStreams
 import socket.zmq.ZMQMessageSocket
 import socket.SocketKernel
 import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
 import interpreter.InterpreterKernel
 import scalaz._, Scalaz._
 import acyclic.file
+
+import scalaz.concurrent.Task
 
 object Server extends LazyLogging {
   case class Options(
@@ -62,56 +67,30 @@ object Server extends LazyLogging {
 
   def launch(
     kernel: Kernel,
-    socket: ZMQMessageSocket,
+    streams: KernelStreams,
     connection: Connection,
     classLoader: Option[ClassLoader]
-  ): Throwable \/ List[Thread] =
+  )(implicit es: ExecutorService): Throwable \/ Task[Unit] =
     kernel match {
       case k: InterpreterKernel =>
         for {
           interpreter <- k.interpreter(classLoader)
-          thread <- \/.fromTryCatchNonFatal {
-            val thread = new Thread {
-              override def run() = {
-                socket.startHeartBeat()
+        } yield
+          InterpreterServer(
+            streams,
+            Output.ConnectReply(
+              shell_port=connection.shell_port,
+              iopub_port=connection.iopub_port,
+              stdin_port=connection.stdin_port,
+              hb_port=connection.hb_port
+            ),
+            interpreter
+          )
 
-                InterpreterServer(
-                  socket,
-                  Output.ConnectReply(
-                    shell_port=connection.shell_port,
-                    iopub_port=connection.iopub_port,
-                    stdin_port=connection.stdin_port,
-                    hb_port=connection.hb_port
-                  ),
-                  interpreter
-                )
-
-                socket.join()
-              }
-            }
-
-            thread setName s"JupyterKernel"
-            thread setDaemon true
-            thread.start()
-
-            thread
-          }
-        } yield List(thread)
-
-      case k: SocketKernel =>
+      case k: StreamKernel =>
         for {
-          kernelSocket <- k.socket(classLoader)
-          _ = socket.startHeartBeat()
-          threads <- Channel.channels.filter(Channel.Heartbeat.!=).traverseU(channel => \/.fromTryCatchNonFatal {
-            val fromKernel: Thread = MessageSocket.transmit(channel)(kernelSocket, socket.send(channel, _))
-            val toKernel: Thread = MessageSocket.transmit(channel)(socket, kernelSocket.send(channel, _))
-
-            fromKernel.start()
-            toKernel.start()
-
-            List(fromKernel, toKernel)
-          })
-        } yield threads.flatten
+          kernelStreams <- k(classLoader)
+        } yield KernelStreams.connect(streams, kernelStreams)
 
       case other =>
         -\/(new Exception(s"Unhandled kernel type: $other"))
@@ -122,7 +101,7 @@ object Server extends LazyLogging {
     kernelId: String,
     options: Server.Options = Server.Options(),
     classLoaderOption: Option[ClassLoader] = None
-  ): Throwable \/ (File, List[Thread]) =
+  )(implicit es: ExecutorService): Throwable \/ (File, Task[Unit]) =
     for {
       homeDir <- {
         Option(System getProperty "user.home").filterNot(_.isEmpty).orElse(sys.env.get("HOME").filterNot(_.isEmpty)) toRightDisjunction {
@@ -152,16 +131,16 @@ object Server extends LazyLogging {
             new Exception(s"Error while loading connection file: $err")
           }
       }
-      socket <- ZMQMessageSocket.start(connection, isServer = false, identity = Some(kernelId)) .leftMap { err =>
+      streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(connection, isServer = false, identity = Some(kernelId))) .leftMap { err =>
         new Exception(s"Unable to open connection: $err", err)
       }
       _ <- {
         if (!options.quiet) Console.err println s"Launching kernel"
         \/-(())
       }
-      threads <- {
-        if (options.meta) \/.fromTryCatchNonFatal(List(MetaServer.start(socket, Server.launch(kernel, _, connection, classLoaderOption), kernelId)))
-        else launch(kernel, socket, connection, classLoaderOption)
+      t <- {
+        if (options.meta) \/.fromTryCatchNonFatal(MetaServer(streams, launch(kernel, _, connection, classLoaderOption), kernelId))
+        else launch(kernel, streams, connection, classLoaderOption)
       }.leftMap(err => new Exception(s"Launching kernel: $err", err))
-    } yield (connFile, threads)
+    } yield (connFile, t)
 }

@@ -1,14 +1,13 @@
 package jupyter
 package kernel
-package socket
+package stream
 package zmq
 
-import java.io.{PrintWriter, File}
-import java.net.{ServerSocket, InetAddress}
+import java.io.{ PrintWriter, File }
+import java.net.{ ServerSocket, InetAddress }
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import protocol._
-import argonaut._, Argonaut._
 import scalaz.\/
 
 import scala.sys.process._
@@ -77,9 +76,9 @@ object ZMQKernel extends LazyLogging {
     w.close()
   }
 
-  def apply(kernelId: String, metaCommand: Seq[String], connectionsDir: File): SocketKernel =
-    new SocketKernel with LazyLogging {
-      private def launchKernel(connectionFile: File): Unit = {
+  def apply(kernelId: String, metaCommand: Seq[String], connectionsDir: File): StreamKernel =
+    StreamKernel.from {
+      def launchKernel(connectionFile: File): Unit = {
         val path = connectionFile.getAbsolutePath
         val cmd = metaCommand.map(_.replaceAllLiterally("{connection_file}", path))
 
@@ -87,7 +86,7 @@ object ZMQKernel extends LazyLogging {
         cmd.run()
       }
 
-      def socket(classLoader: Option[ClassLoader]) =
+      classLoader =>
         for {
           x <- \/.fromTryCatchNonFatal {
             val connectionFile = new File(connectionsDir, s"kernel-${NbUUID.randomUUID()}.json")
@@ -96,7 +95,7 @@ object ZMQKernel extends LazyLogging {
             (c, connectionFile)
           }
           _ <- \/.fromTryCatchNonFatal(launchKernel(x._2))
-          socket <- ZMQMessageSocket.start(x._1, isServer = true, identity = Some(kernelId))
-        } yield socket
+          streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(x._1, isServer = true, identity = Some(kernelId)))
+        } yield streams
     }
 }

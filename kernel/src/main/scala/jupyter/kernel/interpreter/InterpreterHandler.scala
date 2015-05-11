@@ -43,12 +43,12 @@ object InterpreterHandler extends LazyLogging {
     if (code.trim.isEmpty)
       Process.emit(Channel.Requests -> ok(msg, interpreter.executionCount))
     else {
-      val (q, publish) = jupyter.kernel.util.blockingQueueStream[Message]()
+      val q = scalaz.stream.async.boundedQueue[Message](1000)
 
       val res = Task {
         try {
           def error(msg: ParsedMessage[_], err: Output.Error): Message = {
-            q put Some(msg.pub("error", err))
+            q.enqueueOne(msg.pub("error", err)).run
 
             msg.reply(
               "execute_reply",
@@ -66,17 +66,17 @@ object InterpreterHandler extends LazyLogging {
 
           interpreter.interpret(
             code,
-            if (silent) Some(_ => (), _ => ()) else Some(s => q put Some(msg.pub("stream", Output.Stream(name = "stdout", text = s))), s => q put Some(msg.pub("stream", Output.Stream(name = "stderr", text = s)))),
+            if (silent) Some(_ => (), _ => ()) else Some(s => q.enqueueOne(msg.pub("stream", Output.Stream(name = "stdout", text = s))).run, s => q.enqueueOne(msg.pub("stream", Output.Stream(name = "stderr", text = s))).run),
             content.store_history getOrElse !silent
           ) match {
             case Interpreter.Value(repr) if !silent =>
-              q put Some(msg.pub(
+              q.enqueueOne(msg.pub(
                 "execute_result",
                 Output.ExecuteResult(
                   execution_count = interpreter.executionCount,
                   data = repr.data.toMap
                 )
-              ))
+              )).run
 
               ok(msg, interpreter.executionCount)
 
@@ -99,7 +99,7 @@ object InterpreterHandler extends LazyLogging {
               abort(msg, interpreter.executionCount)
           }
         } finally {
-          q put None
+          q.close.run
         }
       }
 
@@ -120,7 +120,7 @@ object InterpreterHandler extends LazyLogging {
           Channel.Publish -> status(Some(msg.header), ExecutionState.idle)
         )
 
-      start ++ publish.map(Channel.Publish.->) ++ Process.eval(res).map(Channel.Requests.->) ++ end
+      start ++ q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).map(Channel.Requests.->) ++ end
     }
   }
 
@@ -186,9 +186,9 @@ object InterpreterHandler extends LazyLogging {
   private def commClose(msg: ParsedMessage[InputOutput.CommClose]): Unit =
     println(msg)
 
-  def apply(interpreter: Interpreter, connectReply: ConnectReply, msg: Message): Process[Task, (Channel, Message)] = {
-    def single(m: Message) = Process.emit(Channel.Requests -> m)
+  private def single(m: Message) = Process.emit(Channel.Requests -> m)
 
+  def apply(interpreter: Interpreter, connectReply: ConnectReply, msg: Message): Process[Task, (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>
         logger error s"Decoding message: $err"
@@ -228,5 +228,4 @@ object InterpreterHandler extends LazyLogging {
             single(parsedMessage.reply("bad_request", Json.obj()))
         }
     }
-  }
 }

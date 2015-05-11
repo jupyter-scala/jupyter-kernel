@@ -85,8 +85,7 @@ case class ZMQMessageSocket(
     case Channel.Publish => publish
     case Channel.Requests => requests
     case Channel.Control => control
-    case Channel.Stdin => stdin
-    case Channel.Heartbeat => heartbeat
+    case Channel.Input => stdin
   }
 
   def send(channel: Channel, msg: Message): Unit = {

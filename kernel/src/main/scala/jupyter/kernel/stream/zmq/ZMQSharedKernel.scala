@@ -1,5 +1,5 @@
 package jupyter
-package kernel.socket
+package kernel.stream
 package zmq
 
 import java.io.File
@@ -11,7 +11,7 @@ import scalaz.\/
 
 import acyclic.file
 
-class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: String) extends SocketKernel with LazyLogging {
+class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: String) extends StreamKernel with LazyLogging {
   import ZMQKernel._
 
   private lazy val connection =
@@ -31,9 +31,9 @@ class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: S
 
   def preStart(connectionFile: File): Unit = {}
 
-  def socket(classLoader: Option[ClassLoader]) =
+  def apply(classLoader: Option[ClassLoader]) =
     for {
       c <- connection
-      socket <- ZMQMessageSocket.start(c, isServer = true, identity = Some(kernelId))
-    } yield socket
+      streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(c, isServer = true, identity = Some(kernelId)))
+    } yield streams
 }

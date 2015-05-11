@@ -5,7 +5,7 @@ import java.io.File
 import scala.collection.mutable.ListBuffer
 
 import com.typesafe.config.{Config => Configg, _}
-import socket.zmq.ZMQKernel
+import stream.zmq.ZMQKernel
 
 import argonaut._, Argonaut._
 
@@ -49,19 +49,6 @@ class KernelSpecs {
 
   def kernelsWithInfo: Map[String, (KernelInfo, Kernel)] = _kernelsLock.synchronized {
     _kernels
-  }
-
-  def kernelFor(filename: String): Option[String] = _kernelsLock.synchronized {
-    _kernels.collectFirst{
-      case (kernelId, (info, _)) if info.isNotebookFileName(filename) => kernelId
-    }
-  }
-
-  def isNotebookFilename(filename: String): Boolean = _kernelsLock.synchronized {
-    _kernels.exists{
-      case (_, (info, _)) => info.isNotebookFileName(filename)
-      case _ => false
-    }
   }
 
   private def isWindows: Boolean =
@@ -111,8 +98,7 @@ class KernelSpecs {
       kernels += id -> (
         KernelInfo(
           name,
-          c.--\("language").as[String].toOption getOrElse "",
-          c.--\("extensions").as[List[String]].toOption getOrElse Nil
+          c.--\("language").as[String].toOption getOrElse ""
         ),
         ZMQKernel(id, argv, iPythonConnectionDir)
       )

@@ -3,11 +3,12 @@ package kernel
 package server
 
 import java.io.{PrintWriter, File}
+import java.util.concurrent.Executors
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 
 import _root_.scala.compat.Platform._
-import scalaz._, Scalaz._
+import scalaz._
 
 import acyclic.file
 
@@ -49,8 +50,7 @@ object ServerApp extends LazyLogging {
       s"""{
          |  "argv": ${(List(progPath) ++ extraProgArgs ++ List("--quiet", "--connection-file", "{connection_file}")).map("\"" + _ + "\"").mkString("[", ", ", "]")},
          |  "display_name": "${kernelInfo.name}",
-         |  "language": "${kernelInfo.language}",
-         |  "extensions": ${kernelInfo.extensions.map("\"" + _ + "\"").mkString("[", ", ", "]")}
+         |  "language": "${kernelInfo.language}"
          |}
        """.stripMargin
     p.close()
@@ -67,7 +67,7 @@ object ServerApp extends LazyLogging {
     if (options.kernelSpec)
       generateKernelSpec(kernelId, kernelInfo, progPath, options, extraProgArgs)
     else
-      Server(kernel, kernelId, options.options) match {
+      Server(kernel, kernelId, options.options)(Executors.newCachedThreadPool()) match {
         case -\/(err) =>
           // Why aren't the causes stack traces returned here?
           def helper(err: Throwable, count: Int = 0) {
@@ -85,7 +85,7 @@ object ServerApp extends LazyLogging {
 
           sys exit 1
 
-        case \/-((connFile, threads)) =>
+        case \/-((connFile, task)) =>
           if (!options.options.quiet) {
             if (options.options.meta)
               Console.err println s"Connect Jove notebook to this kernel with\n  jove-notebook --meta --conn-file ${"\"" + connFile.getAbsolutePath + "\""}"
@@ -101,7 +101,7 @@ object ServerApp extends LazyLogging {
             Console.in.readLine()
             sys exit 0
           } else
-            threads.foreach(_.join())
+            task.run
       }
   }
 }
