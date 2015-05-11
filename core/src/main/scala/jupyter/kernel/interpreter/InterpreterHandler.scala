@@ -2,16 +2,15 @@ package jupyter
 package kernel
 package interpreter
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
 import protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
 import scalaz.concurrent.Task
 import scalaz.stream.Process
-import scalaz.{ \/-, -\/ }
+import scalaz.{\/, \/-, -\/}
 
-object InterpreterHandler extends LazyLogging {
+object InterpreterHandler {
   private def ok(msg: ParsedMessage[_], executionCount: Int): Message =
     msg.reply("execute_reply", Output.ExecuteOkReply(execution_count = executionCount))
 
@@ -21,10 +20,11 @@ object InterpreterHandler extends LazyLogging {
   private def status(parentHeader: Option[Header], state: ExecutionState) =
     ParsedMessage(
       "status" :: Nil,
-      Header(msg_id=NbUUID.randomUUID(),
-        username="scala_kernel",
-        session=NbUUID.randomUUID(),
-        msg_type="status",
+      Header(
+        msg_id = NbUUID.randomUUID(),
+        username = parentHeader.map(_.username) getOrElse "",
+        session = parentHeader.map(_.session) getOrElse NbUUID.randomUUID(),
+        msg_type = "status",
         version = Protocol.versionStrOpt
       ),
       parentHeader,
@@ -32,17 +32,17 @@ object InterpreterHandler extends LazyLogging {
       Output.Status(execution_state = state)
     ).toMessage
 
-  private def execute(interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Process[Task, (Channel, Message)] = {
+  private def execute(interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Process[Task, String \/ (Channel, Message)] = {
     val content = msg.content
     val code = content.code
     val silent = content.silent || code.trim.endsWith(";")
 
     if (code.trim.isEmpty)
-      Process.emit(Channel.Requests -> ok(msg, interpreter.executionCount))
+      Process.emit(\/-(Channel.Requests -> ok(msg, interpreter.executionCount)))
     else {
       val q = scalaz.stream.async.boundedQueue[Message](1000)
 
-      val res = Task {
+      val res = Task.unsafeStart {
         try {
           def error(msg: ParsedMessage[_], err: Output.Error): Message = {
             q.enqueueOne(msg.pub("error", err)).run
@@ -117,7 +117,7 @@ object InterpreterHandler extends LazyLogging {
           Channel.Publish -> status(Some(msg.header), ExecutionState.idle)
         )
 
-      start ++ q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).map(Channel.Requests.->) ++ end
+      (start ++ q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).map(Channel.Requests.->) ++ end).map(\/-(_))
     }
   }
 
@@ -136,17 +136,12 @@ object InterpreterHandler extends LazyLogging {
     )
   }
 
-  private def kernelInfo(msg: ParsedMessage[Input.KernelInfoRequest]): Message =
+  private def kernelInfo(languageInfo: LanguageInfo, msg: ParsedMessage[Input.KernelInfoRequest]): Message =
     msg.reply(
       "kernel_info_reply",
       Output.KernelInfoReply(
         protocol_version = s"${Protocol.version._1}.${Protocol.version._2}",
-        language_info = LanguageInfo(
-          name="scala",
-          codemirror_mode = "text/x-scala",
-          file_extension = "scala",
-          mimetype = "text/x-scala"
-        )
+        language_info = languageInfo
       )
     )
 
@@ -183,29 +178,31 @@ object InterpreterHandler extends LazyLogging {
   private def commClose(msg: ParsedMessage[InputOutput.CommClose]): Unit =
     println(msg)
 
-  private def single(m: Message) = Process.emit(Channel.Requests -> m)
+  private def single(m: Message) = Process.emit(\/-(Channel.Requests -> m))
 
-  def apply(interpreter: Interpreter, connectReply: ConnectReply, msg: Message): Process[Task, (Channel, Message)] =
+  def apply(interpreter: Interpreter, connectReply: ConnectReply, languageInfo: LanguageInfo, msg: Message): Process[Task, String \/ (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>
-        logger error s"Decoding message: $err"
-        Process.halt
+        Process.emit(-\/(s"Decoding message: $err"))
 
       case \/-(parsedMessage) =>
         (parsedMessage.header.msg_type, parsedMessage.content) match {
+          case ("connect_request", r: Input.ConnectRequest) =>
+            single(connect(connectReply: ConnectReply, parsedMessage.copy(content = r)))
+          case ("kernel_info_request", r: Input.KernelInfoRequest) =>
+            single(kernelInfo(languageInfo, parsedMessage.copy(content = r)))
+
           case ("execute_request", r: Input.ExecuteRequest) =>
             execute(interpreter, parsedMessage.copy(content = r))
           case ("complete_request", r: Input.CompleteRequest) =>
             single(complete(interpreter, parsedMessage.copy(content = r)))
-          case ("kernel_info_request", r: Input.KernelInfoRequest) =>
-            single(kernelInfo(parsedMessage.copy(content = r)))
           case ("object_info_request", r: Input.ObjectInfoRequest) =>
             single(objectInfo(parsedMessage.copy(content = r)))
-          case ("connect_request", r: Input.ConnectRequest) =>
-            single(connect(connectReply: ConnectReply, parsedMessage.copy(content = r)))
+
           case ("shutdown_request", r: Input.ShutdownRequest) =>
             // FIXME Propagate shutdown request
             single(shutdown(parsedMessage.copy(content = r)))
+
           case ("history_request", r: Input.HistoryRequest) =>
             single(history(parsedMessage.copy(content = r)))
 
@@ -221,8 +218,7 @@ object InterpreterHandler extends LazyLogging {
             single(parsedMessage.reply("bad_request", Json.obj())) // ???
 
           case _ =>
-            logger debug s"Unrecognized message: $parsedMessage ($msg)"
-            single(parsedMessage.reply("bad_request", Json.obj()))
+            Process.emit(-\/(s"Unrecognized message: $parsedMessage ($msg)"))
         }
     }
 }

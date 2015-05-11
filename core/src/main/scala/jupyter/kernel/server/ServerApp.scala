@@ -6,6 +6,7 @@ import java.io.{PrintWriter, File}
 import java.util.concurrent.Executors
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
+import jupyter.kernel.protocol.Output.LanguageInfo
 
 import scala.compat.Platform._
 import scalaz._
@@ -61,11 +62,11 @@ object ServerApp extends LazyLogging {
   }
 
 
-  def apply(kernelId: String, kernel: Kernel, kernelInfo: KernelInfo, progPath: => String, options: ServerAppOptions = ServerAppOptions(), extraProgArgs: Seq[String] = Nil): Unit = {
+  def apply(kernelId: String, kernel: Kernel, kernelInfo: KernelInfo, languageInfo: LanguageInfo, progPath: => String, options: ServerAppOptions = ServerAppOptions(), extraProgArgs: Seq[String] = Nil): Unit = {
     if (options.kernelSpec)
       generateKernelSpec(kernelId, kernelInfo, progPath, options, extraProgArgs)
     else
-      Server(kernel, kernelId, options.options)(Executors.newCachedThreadPool()) match {
+      Server(kernel, kernelId, languageInfo, options.options)(Executors.newCachedThreadPool()) match {
         case -\/(err) =>
           // Why aren't the causes stack traces returned here?
           def helper(err: Throwable, count: Int = 0) {

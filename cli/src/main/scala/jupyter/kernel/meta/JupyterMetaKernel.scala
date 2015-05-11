@@ -5,6 +5,7 @@ package meta
 import java.io.{ File, PrintWriter }
 import java.util.concurrent.Executors
 
+import jupyter.kernel.protocol.Output.LanguageInfo
 import stream.zmq.ZMQMetaKernel
 import server.{ ServerApp, ServerAppOptions }
 
@@ -74,6 +75,7 @@ case class JupyterMetaKernel(
       Some(name).filter(_.nonEmpty) getOrElse "Kernel",
       Some(language).filter(_.nonEmpty) getOrElse "scala"
     ),
+    LanguageInfo.empty,
     progName,
     options,
     extraProgArgs = Seq(

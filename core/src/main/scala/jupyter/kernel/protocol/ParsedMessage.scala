@@ -301,7 +301,7 @@ case class ParsedMessage[Content](
     val tpe = content match {
       case content: Output.Stream => content.name // ???
       case content: Output.StreamV4 => content.name // ???
-      case _ => msgType.toString
+      case _ => msgType
     }
     
     replyMsg(tpe :: Nil, msgType, content, metadata)
@@ -519,6 +519,10 @@ object Output {
     mimetype: String
     // pygments_lexer: String
   )
+
+  object LanguageInfo {
+    val empty = LanguageInfo("", "", "", "")
+  }
 
   case class KernelInfoReplyV4(
     protocol_version: List[Int],

@@ -7,7 +7,7 @@ import java.util.concurrent.ExecutorService
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import interpreter.{InterpreterHandler, Interpreter}
 import jupyter.kernel.stream.Streams
-import protocol._, Formats._, Output.ConnectReply
+import protocol._, Formats._, jupyter.kernel.protocol.Output.{LanguageInfo, ConnectReply}
 
 import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.async
@@ -18,6 +18,7 @@ object InterpreterServer extends LazyLogging {
   def apply(
     streams: Streams,
     connectReply: ConnectReply,
+    languageInfo: LanguageInfo,
     interpreter: Interpreter
   )(implicit
     es: ExecutorService
@@ -34,15 +35,18 @@ object InterpreterServer extends LazyLogging {
         logger debug s"Error while decoding message: $err"
         Task.now(())
       case \/-(msg) =>
-        InterpreterHandler(interpreter, connectReply, msg).evalMap {
-          case (Channel.Requests, m) =>
+        InterpreterHandler(interpreter, connectReply, languageInfo, msg).evalMap {
+          case \/-((Channel.Requests, m)) =>
             reqQueue enqueueOne m
-          case (Channel.Control, m) =>
+          case \/-((Channel.Control, m)) =>
             contQueue enqueueOne m
-          case (Channel.Publish, m) =>
+          case \/-((Channel.Publish, m)) =>
             pubQueue enqueueOne m
-          case (Channel.Input, m) =>
+          case \/-((Channel.Input, m)) =>
             stdinQueue enqueueOne m
+          case -\/(err) =>
+            logger debug s"Error while handling message: $err"
+            Task.now(())
         }.run
     }
 

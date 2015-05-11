@@ -4,7 +4,7 @@ import java.util.UUID
 
 // Adapted from IScala
 
-class NbUUID private (uuid: UUID, dashes: Boolean = true, upper: Boolean = false) {
+case class NbUUID private (uuid: UUID, dashes: Boolean = true, upper: Boolean = false) {
   override def toString: String = {
     val repr0 = uuid.toString
     val repr1 = if (dashes) repr0 else repr0.replace("-", "")
