@@ -6,7 +6,6 @@ import jupyter.kernel.protocol.Output.{ Error => _, _ }
 import jupyter.kernel.protocol._
 import jupyter.kernel.protocol.Formats.{ inputConnectRequestEncodeJson, inputKernelInfoRequestEncodeJson, inputExecuteRequestEncodeJson }
 
-import scala.util.Random.{ nextInt => randomInt }
 import scalaz.-\/
 
 import utest._
