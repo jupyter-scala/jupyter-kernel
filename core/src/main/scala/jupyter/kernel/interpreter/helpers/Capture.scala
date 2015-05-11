@@ -10,7 +10,7 @@ object Capture {
       try {
         while (true) {
           val n = input read buffer
-          fn(new String(buffer take n))
+          if (n > 0) fn(new String(buffer take n))
 
           if (n < size)
             Thread.sleep(50) // a little delay to accumulate output
