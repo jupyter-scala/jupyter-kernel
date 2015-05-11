@@ -1,7 +1,10 @@
 package jupyter
 package kernel.interpreter
 
+import jupyter.kernel.Kernel
+
 import scala.runtime.ScalaRunTime._
+import scalaz.\/
 
 sealed trait DisplayData {
   def data: Seq[(String, String)]
@@ -52,4 +55,8 @@ object Interpreter {
   final case class Error(message: String) extends Failure
   case object Incomplete extends Failure
   case object Cancelled extends Failure
+}
+
+trait InterpreterKernel extends Kernel {
+  def interpreter(classLoader: Option[ClassLoader]): Throwable \/ Interpreter
 }

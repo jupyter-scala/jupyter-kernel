@@ -4,6 +4,10 @@ import com.typesafe.config._
 import jupyter.kernel.client.KernelSpecs
 
 package object config {
+  trait Module {
+    def kernels: Map[String, (Kernel, KernelInfo)]
+  }
+
   def kernelSpecsFromConfig(specs: KernelSpecs, configName: String): Unit = {
     val kernelConfig = ConfigFactory load configName
 
