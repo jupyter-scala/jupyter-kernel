@@ -6,8 +6,6 @@ import protocol._, Formats._
 
 import scalaz.{-\/, \/}
 
-import acyclic.file
-
 case class Message(
   idents: List[String],
   header: String,

@@ -1,7 +1,6 @@
 package jupyter.kernel.protocol
 
 import java.util.UUID
-import acyclic.file
 
 // Adapted from IScala
 

@@ -2,7 +2,6 @@ package jupyter.kernel.protocol
 
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import acyclic.file
 
 // Adapted from the implementation of IScala
 

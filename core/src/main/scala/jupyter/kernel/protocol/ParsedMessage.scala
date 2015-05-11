@@ -8,8 +8,6 @@ import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
 import scalaz.{\/-, -\/, \/}
 
-import acyclic.file
-
 
 object Formats {
   import Shapeless._

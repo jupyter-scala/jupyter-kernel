@@ -10,8 +10,6 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 import _root_.scala.compat.Platform._
 import scalaz._
 
-import acyclic.file
-
 case class ServerAppOptions(
   options: Server.Options = Server.Options(),
   exitOnKeyPress: Boolean = false,

@@ -11,8 +11,6 @@ import scalaz.concurrent.Task
 import scalaz.stream.Process
 import scalaz.{ \/-, -\/ }
 
-import acyclic.file
-
 object InterpreterHandler extends LazyLogging {
   private def ok(msg: ParsedMessage[_], executionCount: Int): Message =
     msg.reply("execute_reply", Output.ExecuteOkReply(execution_count = executionCount))

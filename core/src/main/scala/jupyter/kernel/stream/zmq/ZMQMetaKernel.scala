@@ -13,8 +13,6 @@ import scalaz.concurrent.{Task, Strategy}
 import scalaz.{\/-, -\/, \/}
 import scalaz.stream.{ Process, async }
 
-import acyclic.file
-
 object ZMQMetaKernel {
   def apply(metaConnectionFile: File, kernelId: String, keepAlive: Boolean)(implicit es: ExecutorService): StreamKernel = new StreamKernel with LazyLogging {
     implicit val s = Strategy.Executor

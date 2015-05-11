@@ -1,7 +1,5 @@
 package jupyter.kernel.interpreter.helpers
 
-import acyclic.file
-
 // From IScala
 
 object Capture {

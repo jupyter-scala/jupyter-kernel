@@ -18,8 +18,6 @@ import scalaz.{-\/, \/-, \/}
 import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.{async, Process}
 
-import acyclic.file
-
 object MetaServer extends LazyLogging {
   def handler(
     launchKernel: Streams => Unit,

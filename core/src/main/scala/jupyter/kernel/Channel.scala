@@ -1,8 +1,6 @@
 package jupyter
 package kernel
 
-import acyclic.file
-
 sealed trait Channel
 
 object Channel {

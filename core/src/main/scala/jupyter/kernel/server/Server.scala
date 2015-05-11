@@ -13,7 +13,6 @@ import jupyter.kernel.stream.zmq.ZMQStreams
 import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
 import interpreter.InterpreterKernel
 import scalaz._, Scalaz._
-import acyclic.file
 
 import scalaz.concurrent.Task
 

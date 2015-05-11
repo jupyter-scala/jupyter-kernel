@@ -1,7 +1,5 @@
 package jupyter.kernel.protocol
 
-import acyclic.file
-
 case class Connection(
   ip: String,
   transport: String,

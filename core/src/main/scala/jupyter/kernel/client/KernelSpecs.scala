@@ -5,7 +5,6 @@ import java.io.File
 import scala.collection.mutable.ListBuffer
 import argonaut._, Argonaut._
 import stream.zmq.ZMQKernel
-import acyclic.file
 
 class KernelSpecs {
   private val _kernelsLock = new AnyRef

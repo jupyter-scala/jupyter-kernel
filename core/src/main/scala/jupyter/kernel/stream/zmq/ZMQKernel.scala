@@ -12,8 +12,6 @@ import scalaz.\/
 
 import scala.sys.process._
 
-import acyclic.file
-
 object ZMQKernel extends LazyLogging {
   def newConnection(): Connection = {
     val key = NbUUID.randomUUID().toString

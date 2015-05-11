@@ -1,8 +1,6 @@
 package jupyter
 package kernel.interpreter
 
-import acyclic.file
-
 import scala.runtime.ScalaRunTime._
 
 sealed trait DisplayData {

@@ -9,8 +9,6 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 import jupyter.kernel.protocol.{ Connection, Formats }, Formats._
 import scalaz.\/
 
-import acyclic.file
-
 class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: String) extends StreamKernel with LazyLogging {
   import ZMQKernel._
 

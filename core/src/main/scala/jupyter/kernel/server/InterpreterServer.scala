@@ -14,8 +14,6 @@ import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.async
 
-import acyclic.file
-
 import scalaz.{\/, -\/, \/-}
 
 object InterpreterServer extends LazyLogging {
