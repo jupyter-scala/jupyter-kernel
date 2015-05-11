@@ -16,7 +16,7 @@ import utest._
 
 object Helpers {
 
-  def echoInterpreter(): Interpreter = new Interpreter with InterpreterCommImpl {
+  def echoInterpreter(): Interpreter = new Interpreter {
     def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean, current: Option[ParsedMessage[_]]) =
       if (line.isEmpty) Incomplete
       else {
@@ -90,7 +90,7 @@ object Helpers {
     for (((req, replies), idx) <- msgs.zipWithIndex) {
       val (msg, msgHdr) = req(idents, userName, sessionId, version)
       val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr, version))
-      val response = InterpreterHandler(intp, connectReply, msg).runLog.run.map(parse(_, commonId))
+      val response = InterpreterHandler(intp, connectReply, (_, _) => (), msg).runLog.run.map(parse(_, commonId))
       assertCmp(response, expected)
     }
   }

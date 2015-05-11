@@ -18,7 +18,7 @@ object InterpreterHandlerTests extends TestSuite {
 
   val tests = TestSuite{
     'malformedHeader{
-      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), Message(Nil, "{", "", "{}", "{}")).runLog.run.map(parse(_))
+      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{", "", "{}", "{}")).runLog.run.map(parse(_))
       assertMatch(response) {
         case IndexedSeq(-\/(_)) =>
       }
@@ -26,7 +26,7 @@ object InterpreterHandlerTests extends TestSuite {
 
     'emptyRequest{
       // FIXME Provide a *real* header
-      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), Message(Nil, "{}", "", "{}", "{}")).runLog.run.map(parse(_))
+      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{}", "", "{}", "{}")).runLog.run.map(parse(_))
       assertMatch(response) {
         case IndexedSeq(-\/(_)) =>
       }

@@ -11,8 +11,8 @@ trait Comm[T] { self =>
 
   def send(msg: CommChannelMessage)(implicit t: T): Unit
 
-  def onMessage(f: CommChannelMessage => Unit)(implicit t: T): Unit
-  def onSentMessage(f: CommChannelMessage => Unit)(implicit t: T): Unit
+  def onMessage(f: CommChannelMessage => Unit): Unit
+  def onSentMessage(f: CommChannelMessage => Unit): Unit
 
 
   def contramap[U](f: U => T): Comm[U] =
@@ -20,7 +20,7 @@ trait Comm[T] { self =>
       def id = self.id
       def send(msg: CommChannelMessage)(implicit u: U) = self.send(msg)(f(u))
 
-      def onMessage(f0: CommChannelMessage => Unit)(implicit u: U) = self.onMessage(f0)(f(u))
-      def onSentMessage(f0: CommChannelMessage => Unit)(implicit u: U) = self.onSentMessage(f0)(f(u))
+      def onMessage(f0: CommChannelMessage => Unit) = self.onMessage(f0)
+      def onSentMessage(f0: CommChannelMessage => Unit) = self.onSentMessage(f0)
     }
 }

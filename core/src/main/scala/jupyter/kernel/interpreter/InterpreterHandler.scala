@@ -2,7 +2,7 @@ package jupyter
 package kernel
 package interpreter
 
-import jupyter.api.NbUUID
+import jupyter.api._
 import protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
@@ -173,7 +173,10 @@ object InterpreterHandler {
 
   private def single(m: Message) = Process.emit(\/-(Channel.Requests -> m))
 
-  def apply(interpreter: Interpreter, connectReply: ConnectReply, msg: Message): Process[Task, String \/ (Channel, Message)] =
+  def apply(interpreter: Interpreter,
+            connectReply: ConnectReply,
+            commHandler: (NbUUID, CommChannelMessage) => Unit,
+            msg: Message): Process[Task, String \/ (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>
         Process.emit(-\/(s"Decoding message: $err"))
@@ -202,13 +205,13 @@ object InterpreterHandler {
           // FIXME These are not handled well
           case ("comm_open", r: InputOutput.CommOpen) =>
             // FIXME IPython messaging spec says: if target_name is empty, we should immediately reply with comm_close
-            interpreter.openReceived(r.comm_id, r.target_name, r.data)
+            commHandler(r.comm_id, CommOpen(r.target_name, r.data.spaces2))
             Process.halt
           case ("comm_msg", r: InputOutput.CommMsg) =>
-            interpreter.msgReceived(r.comm_id, r.data)
+            commHandler(r.comm_id, CommMessage(r.data.spaces2))
             Process.halt
           case ("comm_close", r: InputOutput.CommClose) =>
-            interpreter.closeReceived(r.comm_id, r.data)
+            commHandler(r.comm_id, CommClose(r.data.spaces2))
             Process.halt
 
           case _ =>

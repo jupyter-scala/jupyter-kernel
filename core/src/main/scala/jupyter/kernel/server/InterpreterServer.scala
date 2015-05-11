@@ -3,11 +3,13 @@ package kernel
 package server
 
 import java.util.concurrent.ExecutorService
+import argonaut.{Json, Parse}
+
+import scala.collection.mutable
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import interpreter.{InterpreterHandler, Interpreter}
-import jupyter.api.{Comm, Publish, NbUUID}
-import jupyter.kernel.protocol.InputOutput.CommOpen
+import jupyter.api._
 import jupyter.kernel.stream.Streams
 import protocol._, Formats._, jupyter.kernel.protocol.Output.ConnectReply
 
@@ -31,6 +33,41 @@ object InterpreterServer extends LazyLogging {
     val pubQueue = async.boundedQueue[Message]()
     val stdinQueue = async.boundedQueue[Message]()
 
+    class CommImpl(val id: NbUUID) extends Comm[ParsedMessage[_]] {
+      def received(msg: CommChannelMessage) = {
+        messageHandlers.foreach(_(msg))
+      }
+
+      def send(msg: CommChannelMessage)(implicit t: ParsedMessage[_]) = {
+        def parse(s: String): Json =
+          Parse.parse(s).leftMap(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
+
+        reqQueue.enqueueOne(msg match {
+          case CommOpen(target, data) =>
+            t.pub("comm_open", InputOutput.CommOpen(id, target, parse(data)))
+          case CommMessage(data) =>
+            t.pub("comm_msg", InputOutput.CommMsg(id, parse(data)))
+          case CommClose(data) =>
+            t.pub("comm_close", InputOutput.CommClose(id, parse(data)))
+        })
+
+        sentMessageHandlers.foreach(_(msg))
+      }
+
+      var sentMessageHandlers = Seq.empty[CommChannelMessage => Unit]
+      var messageHandlers = Seq.empty[CommChannelMessage => Unit]
+
+      def onMessage(f: CommChannelMessage => Unit) =
+        messageHandlers = messageHandlers :+ f
+      def onSentMessage(f: CommChannelMessage => Unit) =
+        sentMessageHandlers = sentMessageHandlers :+ f
+    }
+
+    object CommImpl {
+      val comms = new mutable.HashMap[NbUUID, CommImpl]
+      def apply(id: NbUUID) = comms.getOrElseUpdate(id, new CommImpl(id))
+    }
+
     interpreter.publish(new Publish[ParsedMessage[_]] {
       def stdout(text: String)(implicit t: ParsedMessage[_]) =
         t.pub("stream", Output.Stream(name = "stdout", text = text))
@@ -38,7 +75,8 @@ object InterpreterServer extends LazyLogging {
         t.pub("stream", Output.Stream(name = "stderr", text = text))
       def display(source: String, items: (String, String)*)(implicit t: ParsedMessage[_]) =
         t.pub("display_data", Output.DisplayData(source = source, data = items.toMap, metadata = Map.empty))
-      def comm(id: NbUUID) = ???
+
+      def comm(id: NbUUID) = CommImpl(id)
     })
 
     val process: (String \/ Message) => Task[Unit] = {
@@ -46,7 +84,7 @@ object InterpreterServer extends LazyLogging {
         logger debug s"Error while decoding message: $err"
         Task.now(())
       case \/-(msg) =>
-        InterpreterHandler(interpreter, connectReply, msg).evalMap {
+        InterpreterHandler(interpreter, connectReply, CommImpl(_).received(_), msg).evalMap {
           case \/-((Channel.Requests, m)) =>
             reqQueue enqueueOne m
           case \/-((Channel.Control, m)) =>
@@ -59,10 +97,6 @@ object InterpreterServer extends LazyLogging {
             logger debug s"Error while handling message: $err"
             Task.now(())
         }.run
-    }
-
-    interpreter.openSentHandler { (id, target, data) =>
-      reqQueue enqueueOne ParsedMessage(Nil, ???, None, Map.empty, CommOpen(id, target, data)).toMessage
     }
 
     Task.gatherUnordered(Seq(
