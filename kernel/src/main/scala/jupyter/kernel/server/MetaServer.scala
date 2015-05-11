@@ -4,7 +4,6 @@ package server
 
 import java.util.concurrent.ExecutorService
 
-import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import jupyter.kernel.interpreter.{InterpreterHandler, Interpreter}
 import jupyter.kernel.protocol.Output.ConnectReply

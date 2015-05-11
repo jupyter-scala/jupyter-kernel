@@ -7,7 +7,6 @@ import java.lang.management.ManagementFactory
 import java.net.{InetAddress, ServerSocket}
 import java.util.concurrent.ExecutorService
 import argonaut._, Argonaut._
-import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import jupyter.kernel.stream.{StreamKernel, KernelStreams}
 import jupyter.kernel.stream.zmq.ZMQKernelStreams

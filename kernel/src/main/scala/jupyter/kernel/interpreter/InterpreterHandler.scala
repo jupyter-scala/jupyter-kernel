@@ -2,7 +2,6 @@ package jupyter
 package kernel
 package interpreter
 
-import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 

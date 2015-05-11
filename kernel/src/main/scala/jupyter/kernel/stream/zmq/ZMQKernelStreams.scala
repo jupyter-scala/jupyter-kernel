@@ -5,7 +5,6 @@ package zmq
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.kernel.MessageSocket.Channel
 import jupyter.kernel.protocol.{HMAC, Connection}
 import org.zeromq.ZMQ
 import org.zeromq.ZMQ.{Poller, PollItem}
