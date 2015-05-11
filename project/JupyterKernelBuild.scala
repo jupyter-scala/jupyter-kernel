@@ -75,7 +75,7 @@ object JupyterKernelBuild extends Build {
         "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
         "org.scalaz.stream" %% "scalaz-stream" % "0.6a"
       ),
-      publishArtifact in Test := true
+      publishArtifact in (Test, packageBin) := true
     )
 
   lazy val cli = Project(id = "cli", base = file("cli"))
