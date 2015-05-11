@@ -7,6 +7,7 @@ import java.io.{ PrintWriter, File }
 import java.net.{ ServerSocket, InetAddress }
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
+import jupyter.api.NbUUID
 import protocol._
 import scalaz.\/
 

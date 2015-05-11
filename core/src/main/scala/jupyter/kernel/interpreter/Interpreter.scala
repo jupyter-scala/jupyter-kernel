@@ -3,8 +3,9 @@ package kernel.interpreter
 
 import argonaut.Json
 import jupyter.kernel.Kernel
-import jupyter.kernel.protocol.NbUUID
+import jupyter.api.{Publish, NbUUID}
 import jupyter.kernel.protocol.Output.LanguageInfo
+import jupyter.kernel.protocol.ParsedMessage
 
 import scala.runtime.ScalaRunTime._
 import scalaz.\/
@@ -37,10 +38,11 @@ object DisplayData {
 }
 
 trait Interpreter extends InterpreterComm {
-  def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean): Interpreter.Result
+  def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean, current: Option[ParsedMessage[_]]): Interpreter.Result
   def complete(code: String, pos: Int): (Int, Seq[String])
   def executionCount: Int
   def languageInfo: LanguageInfo
+  def publish(publish: Publish[ParsedMessage[_]]): Unit = {}
 }
 
 trait InterpreterComm {

@@ -2,6 +2,7 @@ package jupyter
 package kernel
 package interpreter
 
+import jupyter.api.NbUUID
 import protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
@@ -64,7 +65,8 @@ object InterpreterHandler {
           interpreter.interpret(
             code,
             if (silent) Some(_ => (), _ => ()) else Some(s => q.enqueueOne(msg.pub("stream", Output.Stream(name = "stdout", text = s))).run, s => q.enqueueOne(msg.pub("stream", Output.Stream(name = "stderr", text = s))).run),
-            content.store_history getOrElse !silent
+            content.store_history getOrElse !silent,
+            Some(msg)
           ) match {
             case Interpreter.Value(repr) if !silent =>
               q.enqueueOne(msg.pub(

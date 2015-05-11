@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import interpreter.{InterpreterHandler, Interpreter}
+import jupyter.api.{Comm, Publish, NbUUID}
 import jupyter.kernel.protocol.InputOutput.CommOpen
 import jupyter.kernel.stream.Streams
 import protocol._, Formats._, jupyter.kernel.protocol.Output.ConnectReply
@@ -16,19 +17,29 @@ import scalaz.stream.async
 import scalaz.{\/, -\/, \/-}
 
 object InterpreterServer extends LazyLogging {
-  def apply(
-    streams: Streams,
-    connectReply: ConnectReply,
-    interpreter: Interpreter
-  )(implicit
-    es: ExecutorService
-  ): Task[Unit] = {
+
+  def apply(streams: Streams,
+            connectReply: ConnectReply,
+            interpreter: Interpreter)
+           (implicit
+            es: ExecutorService): Task[Unit] = {
+
     implicit val strategy = Strategy.Executor
 
     val reqQueue = async.boundedQueue[Message]()
     val contQueue = async.boundedQueue[Message]()
     val pubQueue = async.boundedQueue[Message]()
     val stdinQueue = async.boundedQueue[Message]()
+
+    interpreter.publish(new Publish[ParsedMessage[_]] {
+      def stdout(text: String)(implicit t: ParsedMessage[_]) =
+        t.pub("stream", Output.Stream(name = "stdout", text = text))
+      def stderr(text: String)(implicit t: ParsedMessage[_]) =
+        t.pub("stream", Output.Stream(name = "stderr", text = text))
+      def display(source: String, items: (String, String)*)(implicit t: ParsedMessage[_]) =
+        t.pub("display_data", Output.DisplayData(source = source, data = items.toMap, metadata = Map.empty))
+      def comm(id: NbUUID) = ???
+    })
 
     val process: (String \/ Message) => Task[Unit] = {
       case -\/(err) =>
@@ -80,4 +91,5 @@ object InterpreterServer extends LazyLogging {
       streams.controlMessages.evalMap(process).run
     )).map(_ => ())
   }
+
 }

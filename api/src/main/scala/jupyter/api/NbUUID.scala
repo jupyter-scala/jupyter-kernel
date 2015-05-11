@@ -1,4 +1,4 @@
-package jupyter.kernel.protocol
+package jupyter.api
 
 import java.util.UUID
 

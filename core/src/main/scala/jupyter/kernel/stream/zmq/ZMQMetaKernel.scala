@@ -7,6 +7,7 @@ import java.io.File
 import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
+import jupyter.api.NbUUID
 import protocol._, Formats._
 import argonaut._, Argonaut._
 import scalaz.concurrent.{Task, Strategy}

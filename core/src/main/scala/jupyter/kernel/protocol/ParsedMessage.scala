@@ -2,10 +2,11 @@ package jupyter
 package kernel
 package protocol
 
-import scala.util.Try
+import jupyter.api.NbUUID
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
+import scala.util.Try
 import scalaz.{\/-, -\/, \/}
 
 

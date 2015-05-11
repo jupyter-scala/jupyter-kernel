@@ -4,7 +4,7 @@ import jupyter.kernel.{ Message, Channel }, Channel._
 import jupyter.kernel.interpreter.DisplayData.RawData
 import jupyter.kernel.protocol.Output.{ Error => _, _ }
 import jupyter.kernel.protocol._
-import jupyter.kernel.protocol.NbUUID.randomUUID
+import jupyter.api.NbUUID, NbUUID.randomUUID
 import jupyter.kernel.interpreter.Interpreter._
 
 import scala.util.Random.{ nextInt => randomInt }
@@ -17,7 +17,7 @@ import utest._
 object Helpers {
 
   def echoInterpreter(): Interpreter = new Interpreter with InterpreterCommImpl {
-    def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean) =
+    def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean, current: Option[ParsedMessage[_]]) =
       if (line.isEmpty) Incomplete
       else {
         if (storeHistory) executionCount += 1

@@ -64,7 +64,14 @@ object JupyterKernelBuild extends Build {
     testFrameworks += new TestFramework("utest.runner.Framework")
   )
 
+  lazy val api = Project(id = "api", base = file("api"))
+    .settings(commonSettings: _*)
+    .settings(
+      name := "jupyter-api"
+    )
+
   lazy val core = Project(id = "core", base = file("core"))
+    .dependsOn(api)
     .settings(commonSettings ++ testSettings: _*)
     .settings(
       name := "jupyter-kernel",
@@ -93,5 +100,5 @@ object JupyterKernelBuild extends Build {
 
   lazy val root = Project(id = "jupyter-kernel", base = file("."))
     .settings(commonSettings: _*)
-    .aggregate(core, cli)
+    .aggregate(api, core, cli)
 }

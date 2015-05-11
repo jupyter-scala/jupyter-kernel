@@ -8,9 +8,10 @@ import java.net.{InetAddress, ServerSocket}
 import java.util.concurrent.ExecutorService
 import argonaut._, Argonaut._
 import com.typesafe.scalalogging.slf4j.LazyLogging
+import jupyter.api.NbUUID
 import jupyter.kernel.stream.{StreamKernel, Streams}
 import jupyter.kernel.stream.zmq.ZMQStreams
-import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
+import jupyter.kernel.protocol.{Connection, Output, Formats}, Formats._
 import interpreter.InterpreterKernel
 import scalaz._, Scalaz._
 
