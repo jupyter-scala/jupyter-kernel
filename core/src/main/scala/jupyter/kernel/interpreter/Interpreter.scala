@@ -37,8 +37,6 @@ trait Interpreter {
   def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean): Interpreter.Result
   def complete(code: String, pos: Int): (Int, Seq[String])
   def executionCount: Int
-  def reset(): Unit
-  def stop(): Unit
 }
 
 object Interpreter {
