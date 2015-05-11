@@ -9,8 +9,6 @@ import interpreter.{InterpreterHandler, Interpreter}
 import jupyter.kernel.stream.Streams
 import protocol._, Formats._, Output.ConnectReply
 
-import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
-
 import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.async
 
