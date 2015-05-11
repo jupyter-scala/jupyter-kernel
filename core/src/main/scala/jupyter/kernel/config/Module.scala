@@ -1,5 +1,5 @@
 package jupyter.kernel
-package reflection
+package config
 
 import acyclic.file
 

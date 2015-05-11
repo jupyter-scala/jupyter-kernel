@@ -1,13 +1,13 @@
 package jupyter.kernel
 
-import com.typesafe.config.{Config => Configg, _}
+import com.typesafe.config._
 import jupyter.kernel.client.KernelSpecs
 
-package object reflection {
+package object config {
   def kernelSpecsFromConfig(specs: KernelSpecs, configName: String): Unit = {
     val kernelConfig = ConfigFactory load configName
 
-    def configMap(c: Configg, path: String): Map[String, ConfigValue] = {
+    def configMap(c: Config, path: String): Map[String, ConfigValue] = {
       import scala.collection.JavaConverters._
 
       if (c.hasPath(path))
