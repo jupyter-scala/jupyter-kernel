@@ -1,13 +1,14 @@
 package jupyter.kernel
-package server
+package client
 
 import java.io.File
 import scala.collection.mutable.ListBuffer
-
 import com.typesafe.config.{Config => Configg, _}
-import stream.zmq.ZMQKernel
 
 import argonaut._, Argonaut._
+
+import stream.zmq.ZMQKernel
+import reflection.Module
 
 import acyclic.file
 
