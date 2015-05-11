@@ -86,7 +86,7 @@ object JupyterKernelBuild extends Build {
     .settings(
       name := "jupyter-meta-kernel",
       libraryDependencies ++= Seq(
-        "com.github.alexarchambault" %% "case-app" % "0.2.1",
+        "com.github.alexarchambault" %% "case-app" % "0.3.0-SNAPSHOT",
         "ch.qos.logback" % "logback-classic" % "1.0.13"
       )
     )
