@@ -33,5 +33,3 @@ using older versions.
 **More explanations and examples to come**
 
 Released under the LGPL version 3 license.
-
-Initially released as the [jove](https://github.com/jove-sh/jove) library
