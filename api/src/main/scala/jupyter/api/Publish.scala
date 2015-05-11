@@ -6,6 +6,10 @@ trait Publish[T] { self =>
 
   def display(source: String, items: (String, String)*)(implicit t: T): Unit
 
+  /**
+   * Bidirectional communication channel with the front-end.
+   * WIP, doesn't work yet.
+   */
   def comm(id: NbUUID): Comm[T]
 
 
