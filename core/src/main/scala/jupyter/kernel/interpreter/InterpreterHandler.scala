@@ -180,7 +180,7 @@ object InterpreterHandler {
 
   private def single(m: Message) = Process.emit(\/-(Channel.Requests -> m))
 
-  def apply(interpreter: Interpreter, connectReply: ConnectReply, languageInfo: LanguageInfo, msg: Message): Process[Task, String \/ (Channel, Message)] =
+  def apply(interpreter: Interpreter, connectReply: ConnectReply, msg: Message): Process[Task, String \/ (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>
         Process.emit(-\/(s"Decoding message: $err"))
@@ -190,7 +190,7 @@ object InterpreterHandler {
           case ("connect_request", r: Input.ConnectRequest) =>
             single(connect(connectReply: ConnectReply, parsedMessage.copy(content = r)))
           case ("kernel_info_request", r: Input.KernelInfoRequest) =>
-            single(kernelInfo(languageInfo, parsedMessage.copy(content = r)))
+            single(kernelInfo(interpreter.languageInfo, parsedMessage.copy(content = r)))
 
           case ("execute_request", r: Input.ExecuteRequest) =>
             execute(interpreter, parsedMessage.copy(content = r))

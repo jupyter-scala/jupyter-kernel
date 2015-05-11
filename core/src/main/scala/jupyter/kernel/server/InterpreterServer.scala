@@ -18,7 +18,6 @@ object InterpreterServer extends LazyLogging {
   def apply(
     streams: Streams,
     connectReply: ConnectReply,
-    languageInfo: LanguageInfo,
     interpreter: Interpreter
   )(implicit
     es: ExecutorService
@@ -35,7 +34,7 @@ object InterpreterServer extends LazyLogging {
         logger debug s"Error while decoding message: $err"
         Task.now(())
       case \/-(msg) =>
-        InterpreterHandler(interpreter, connectReply, languageInfo, msg).evalMap {
+        InterpreterHandler(interpreter, connectReply, msg).evalMap {
           case \/-((Channel.Requests, m)) =>
             reqQueue enqueueOne m
           case \/-((Channel.Control, m)) =>

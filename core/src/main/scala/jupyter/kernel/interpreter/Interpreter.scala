@@ -2,6 +2,7 @@ package jupyter
 package kernel.interpreter
 
 import jupyter.kernel.Kernel
+import jupyter.kernel.protocol.Output.LanguageInfo
 
 import scala.runtime.ScalaRunTime._
 import scalaz.\/
@@ -37,6 +38,7 @@ trait Interpreter {
   def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean): Interpreter.Result
   def complete(code: String, pos: Int): (Int, Seq[String])
   def executionCount: Int
+  def languageInfo: LanguageInfo
 }
 
 object Interpreter {

@@ -82,7 +82,6 @@ object Server extends LazyLogging {
               stdin_port=connection.stdin_port,
               hb_port=connection.hb_port
             ),
-            languageInfo,
             interpreter
           )
 
