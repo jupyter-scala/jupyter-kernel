@@ -2,7 +2,7 @@ package jupyter
 package kernel
 package protocol
 
-import _root_.scala.util.Try
+import scala.util.Try
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 

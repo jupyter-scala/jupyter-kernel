@@ -7,7 +7,7 @@ import java.util.concurrent.Executors
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 
-import _root_.scala.compat.Platform._
+import scala.compat.Platform._
 import scalaz._
 
 case class ServerAppOptions(
