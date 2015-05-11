@@ -58,7 +58,7 @@ object ZMQMetaKernel {
 
     def preStart(connectionFile: File): Unit = {}
 
-    def apply(classLoader: Option[ClassLoader]) =
+    def apply() =
       metaStreams() flatMap { case (send, receive, end) =>
         try {
           for {

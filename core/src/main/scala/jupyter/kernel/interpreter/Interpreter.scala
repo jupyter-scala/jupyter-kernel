@@ -58,5 +58,5 @@ object Interpreter {
 }
 
 trait InterpreterKernel extends Kernel {
-  def interpreter(classLoader: Option[ClassLoader]): Throwable \/ Interpreter
+  def apply(): Throwable \/ Interpreter
 }

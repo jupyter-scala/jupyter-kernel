@@ -29,7 +29,7 @@ class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: S
 
   def preStart(connectionFile: File): Unit = {}
 
-  def apply(classLoader: Option[ClassLoader]) =
+  def apply() =
     for {
       c <- connection
       streams <- \/.fromTryCatchNonFatal(ZMQStreams(c, isServer = true, identity = Some(kernelId)))

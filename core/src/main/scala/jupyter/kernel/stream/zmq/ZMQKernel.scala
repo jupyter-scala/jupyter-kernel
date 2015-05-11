@@ -74,26 +74,26 @@ object ZMQKernel extends LazyLogging {
     w.close()
   }
 
-  def apply(kernelId: String, metaCommand: Seq[String], connectionsDir: File): StreamKernel =
-    StreamKernel.from {
-      def launchKernel(connectionFile: File): Unit = {
-        val path = connectionFile.getAbsolutePath
-        val cmd = metaCommand.map(_.replaceAllLiterally("{connection_file}", path))
+  def apply(kernelId: String, metaCommand: Seq[String], connectionsDir: File): StreamKernel = {
+    def launchKernel(connectionFile: File): Unit = {
+      val path = connectionFile.getAbsolutePath
+      val cmd = metaCommand.map(_.replaceAllLiterally("{connection_file}", path))
 
-        logger debug s"Running command $cmd"
-        cmd.run()
-      }
-
-      classLoader =>
-        for {
-          x <- \/.fromTryCatchNonFatal {
-            val connectionFile = new File(connectionsDir, s"kernel-${NbUUID.randomUUID()}.json")
-            val c = newConnection()
-            writeConnection(c, connectionFile)
-            (c, connectionFile)
-          }
-          _ <- \/.fromTryCatchNonFatal(launchKernel(x._2))
-          streams <- \/.fromTryCatchNonFatal(ZMQStreams(x._1, isServer = true, identity = Some(kernelId)))
-        } yield streams
+      logger debug s"Running command $cmd"
+      cmd.run()
     }
+
+    StreamKernel.from {
+      for {
+        x <- \/.fromTryCatchNonFatal {
+          val connectionFile = new File(connectionsDir, s"kernel-${NbUUID.randomUUID()}.json")
+          val c = newConnection()
+          writeConnection(c, connectionFile)
+          (c, connectionFile)
+        }
+        _ <- \/.fromTryCatchNonFatal(launchKernel(x._2))
+        streams <- \/.fromTryCatchNonFatal(ZMQStreams(x._1, isServer = true, identity = Some(kernelId)))
+      } yield streams
+    }
+  }
 }

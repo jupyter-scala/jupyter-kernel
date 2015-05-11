@@ -70,7 +70,7 @@ object Server extends LazyLogging {
     kernel match {
       case k: InterpreterKernel =>
         for {
-          interpreter <- k.interpreter(classLoader)
+          interpreter <- k()
         } yield
           InterpreterServer(
             streams,
@@ -85,7 +85,7 @@ object Server extends LazyLogging {
 
       case k: StreamKernel =>
         for {
-          kernelStreams <- k(classLoader)
+          kernelStreams <- k()
         } yield Streams.connect(streams, kernelStreams)
 
       case other =>
