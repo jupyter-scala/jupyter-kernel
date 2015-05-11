@@ -77,7 +77,7 @@ object JupyterKernelBuild extends Build {
       name := "jupyter-kernel",
       libraryDependencies ++= Seq(
         "com.typesafe" % "config" % "1.2.1",
-        "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "0.2.0-SNAPSHOT",
+        "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "0.1.1",
         "org.zeromq" % "jeromq" % "0.3.4",
         "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
         "org.scalaz.stream" %% "scalaz-stream" % "0.6a"
@@ -93,7 +93,7 @@ object JupyterKernelBuild extends Build {
     .settings(
       name := "jupyter-meta-kernel",
       libraryDependencies ++= Seq(
-        "com.github.alexarchambault" %% "case-app" % "0.3.0-SNAPSHOT",
+        "com.github.alexarchambault" %% "case-app" % "0.2.2",
         "ch.qos.logback" % "logback-classic" % "1.0.13"
       )
     )
