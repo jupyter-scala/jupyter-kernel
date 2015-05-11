@@ -56,7 +56,7 @@ object JupyterBuild extends Build {
     libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.2" % "provided"
   ) ++ releaseSettings ++ publishSettings
 
-  lazy val kernel = Project(id = "kernel", base = file("kernel"))
+  lazy val core = Project(id = "core", base = file("core"))
     .settings(commonSettings: _*)
     .settings(buildInfoSettings: _*)
     .settings(
@@ -90,7 +90,7 @@ object JupyterBuild extends Build {
         (sourceDirectory in Compile).value / s"scala-${scalaBinaryVersion.value}"
     )
 
-  lazy val metaKernel = Project(id = "meta-kernel", base = file("meta-kernel"))
+  lazy val cli = Project(id = "cli", base = file("cli"))
     .settings(commonSettings: _*)
     .settings(conscript.Harness.conscriptSettings: _*)
     .settings(packAutoSettings ++ publishPackTxzArchive ++ publishPackZipArchive: _*)
@@ -109,9 +109,9 @@ object JupyterBuild extends Build {
           Seq()
       }
     )
-    .dependsOn(kernel)
+    .dependsOn(core)
 
   lazy val root = Project(id = "jupyter-kernel", base = file("."))
     .settings(commonSettings: _*)
-    .aggregate(kernel, metaKernel)
+    .aggregate(core, cli)
 }
