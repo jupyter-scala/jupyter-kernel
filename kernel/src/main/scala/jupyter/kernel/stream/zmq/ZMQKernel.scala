@@ -95,7 +95,7 @@ object ZMQKernel extends LazyLogging {
             (c, connectionFile)
           }
           _ <- \/.fromTryCatchNonFatal(launchKernel(x._2))
-          streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(x._1, isServer = true, identity = Some(kernelId)))
+          streams <- \/.fromTryCatchNonFatal(ZMQStreams(x._1, isServer = true, identity = Some(kernelId)))
         } yield streams
     }
 }

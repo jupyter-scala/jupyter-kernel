@@ -13,7 +13,7 @@ import scalaz.{\/-, -\/, \/}
 import scalaz.concurrent.Task
 import scalaz.stream.{ Process, Sink }
 
-object ZMQKernelStreams extends LazyLogging {
+object ZMQStreams extends LazyLogging {
   private val DELIMITER = "<IDS|MSG>"
   private val pollingDelay = 1000L
 

@@ -25,7 +25,7 @@ object ZMQMetaKernel {
           lines <- \/.fromTryCatchNonFatal(scala.io.Source.fromFile(metaConnectionFile).mkString)
           c <- lines.decodeEither[Connection].leftMap(s => new Exception(s"Error while reading ${metaConnectionFile.getAbsolutePath}: $s"))
           _ <- \/.fromTryCatchNonFatal(preStart(metaConnectionFile))
-          streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(c, isServer = true, identity = Some(kernelId)))
+          streams <- \/.fromTryCatchNonFatal(ZMQStreams(c, isServer = true, identity = Some(kernelId)))
         } yield {
           val responsesQueue = async.boundedQueue[Message](10)
           streams.requestMessages.flatMap {
@@ -79,7 +79,7 @@ object ZMQMetaKernel {
               }
             } .leftMap(s => new Exception(s"Decoding message (meta): $s"))
             connection <- \/.fromEither(msg.connection) .leftMap(s => new Exception(s"From kernel (meta): $s"))
-            streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(connection, isServer = true, identity = Some(kernelId)))
+            streams <- \/.fromTryCatchNonFatal(ZMQStreams(connection, isServer = true, identity = Some(kernelId)))
           } yield streams
         } finally {
           end()

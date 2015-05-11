@@ -9,7 +9,7 @@ import jupyter.kernel.interpreter.{InterpreterHandler, Interpreter}
 import jupyter.kernel.protocol.Output.ConnectReply
 import jupyter.kernel.server.InterpreterServer._
 import jupyter.kernel.stream.Streams
-import stream.zmq.{ZMQKernelStreams, ZMQKernel}
+import stream.zmq.{ZMQStreams, ZMQKernel}
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 import protocol.{ Meta => MetaProtocol, _ }, Formats._
@@ -36,7 +36,7 @@ object MetaServer extends LazyLogging {
             val c =
               for {
                 connection <- \/.fromTryCatchNonFatal(ZMQKernel.newConnection())
-                streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(connection, isServer = false, identity = Some(kernelId)))
+                streams <- \/.fromTryCatchNonFatal(ZMQStreams(connection, isServer = false, identity = Some(kernelId)))
                 _ <- \/.fromTryCatchNonFatal(launchKernel(streams))
               } yield connection
 

@@ -34,6 +34,6 @@ class ZMQSharedKernel(connectionFile: File, create: Boolean = false, kernelId: S
   def apply(classLoader: Option[ClassLoader]) =
     for {
       c <- connection
-      streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(c, isServer = true, identity = Some(kernelId)))
+      streams <- \/.fromTryCatchNonFatal(ZMQStreams(c, isServer = true, identity = Some(kernelId)))
     } yield streams
 }

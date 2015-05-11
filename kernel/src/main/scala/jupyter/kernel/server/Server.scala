@@ -9,7 +9,7 @@ import java.util.concurrent.ExecutorService
 import argonaut._, Argonaut._
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import jupyter.kernel.stream.{StreamKernel, Streams}
-import jupyter.kernel.stream.zmq.ZMQKernelStreams
+import jupyter.kernel.stream.zmq.ZMQStreams
 import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
 import interpreter.InterpreterKernel
 import scalaz._, Scalaz._
@@ -128,7 +128,7 @@ object Server extends LazyLogging {
             new Exception(s"Error while loading connection file: $err")
           }
       }
-      streams <- \/.fromTryCatchNonFatal(ZMQKernelStreams(connection, isServer = false, identity = Some(kernelId))) .leftMap { err =>
+      streams <- \/.fromTryCatchNonFatal(ZMQStreams(connection, isServer = false, identity = Some(kernelId))) .leftMap { err =>
         new Exception(s"Unable to open connection: $err", err)
       }
       _ <- {
