@@ -6,7 +6,7 @@ import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import interpreter.{InterpreterHandler, Interpreter}
-import jupyter.kernel.stream.KernelStreams
+import jupyter.kernel.stream.Streams
 import protocol._, Formats._, Output.ConnectReply
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
@@ -20,7 +20,7 @@ import scalaz.{\/, -\/, \/-}
 
 object InterpreterServer extends LazyLogging {
   def apply(
-    streams: KernelStreams,
+    streams: Streams,
     connectReply: ConnectReply,
     interpreter: Interpreter
   )(implicit

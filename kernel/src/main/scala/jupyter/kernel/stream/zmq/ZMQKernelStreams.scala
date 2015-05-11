@@ -17,7 +17,7 @@ object ZMQKernelStreams extends LazyLogging {
   private val DELIMITER = "<IDS|MSG>"
   private val pollingDelay = 1000L
 
-  def apply(connection: Connection, isServer: Boolean, identity: Option[String]): KernelStreams = {
+  def apply(connection: Connection, isServer: Boolean, identity: Option[String]): Streams = {
     val ctx = ZMQ.context(1)
 
     val   publish = ctx socket (if (isServer) ZMQ.SUB else ZMQ.PUB)
@@ -172,7 +172,7 @@ object ZMQKernelStreams extends LazyLogging {
       ctx.close()
     }
 
-    KernelStreams(
+    Streams(
       process(Channel.Requests), sink(Channel.Requests),
       process(Channel.Control), sink(Channel.Control),
       process(Channel.Publish), sink(Channel.Publish),

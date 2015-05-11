@@ -7,7 +7,7 @@ import scalaz.{-\/, \/-, \/}
 import scalaz.concurrent.Task
 import scalaz.stream.{Sink, Process}
 
-case class KernelStreams(
+case class Streams(
   requestMessages: Process[Task, String \/ Message],
   requestSink: Sink[Task, Message],
   controlMessages: Process[Task, String \/ Message],
@@ -19,8 +19,8 @@ case class KernelStreams(
   stop: () => Unit
 )
 
-object KernelStreams extends LazyLogging {
-  def connect(a: KernelStreams, b: KernelStreams): Task[Unit] = {
+object Streams extends LazyLogging {
+  def connect(a: Streams, b: Streams): Task[Unit] = {
     def collect(channelName: String): String \/ Message => Process[Task, Message] = {
       case -\/(err) =>
         logger warn s"Failed to decode message on $channelName: $err"

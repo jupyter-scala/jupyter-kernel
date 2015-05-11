@@ -8,7 +8,7 @@ import java.net.{InetAddress, ServerSocket}
 import java.util.concurrent.ExecutorService
 import argonaut._, Argonaut._
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.kernel.stream.{StreamKernel, KernelStreams}
+import jupyter.kernel.stream.{StreamKernel, Streams}
 import jupyter.kernel.stream.zmq.ZMQKernelStreams
 import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
 import interpreter.InterpreterKernel
@@ -64,7 +64,7 @@ object Server extends LazyLogging {
 
   def launch(
     kernel: Kernel,
-    streams: KernelStreams,
+    streams: Streams,
     connection: Connection,
     classLoader: Option[ClassLoader]
   )(implicit es: ExecutorService): Throwable \/ Task[Unit] =
@@ -87,7 +87,7 @@ object Server extends LazyLogging {
       case k: StreamKernel =>
         for {
           kernelStreams <- k(classLoader)
-        } yield KernelStreams.connect(streams, kernelStreams)
+        } yield Streams.connect(streams, kernelStreams)
 
       case other =>
         -\/(new Exception(s"Unhandled kernel type: $other"))

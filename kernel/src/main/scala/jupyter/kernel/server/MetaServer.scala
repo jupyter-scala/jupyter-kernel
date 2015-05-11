@@ -8,7 +8,7 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 import jupyter.kernel.interpreter.{InterpreterHandler, Interpreter}
 import jupyter.kernel.protocol.Output.ConnectReply
 import jupyter.kernel.server.InterpreterServer._
-import jupyter.kernel.stream.KernelStreams
+import jupyter.kernel.stream.Streams
 import stream.zmq.{ZMQKernelStreams, ZMQKernel}
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
@@ -22,7 +22,7 @@ import acyclic.file
 
 object MetaServer extends LazyLogging {
   def handler(
-    launchKernel: KernelStreams => Unit,
+    launchKernel: Streams => Unit,
     kernelId: String,
     baseMsg: Message
   ): Process[Task, Message] =
@@ -57,8 +57,8 @@ object MetaServer extends LazyLogging {
 
 
   def apply(
-    streams: KernelStreams,
-    launchKernel: KernelStreams => Unit,
+    streams: Streams,
+    launchKernel: Streams => Unit,
     kernelId: String
   )(implicit
     es: ExecutorService
