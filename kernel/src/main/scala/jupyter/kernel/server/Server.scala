@@ -11,8 +11,6 @@ import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import jupyter.kernel.stream.{StreamKernel, KernelStreams}
 import jupyter.kernel.stream.zmq.ZMQKernelStreams
-import socket.zmq.ZMQMessageSocket
-import socket.SocketKernel
 import jupyter.kernel.protocol.{Connection, Output, NbUUID, Formats}, Formats._
 import interpreter.InterpreterKernel
 import scalaz._, Scalaz._
