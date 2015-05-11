@@ -446,8 +446,8 @@ object Output {
 
   case class ExecuteOkReply(
     execution_count: Int,
-    payload: List[Map[String, String]],
-    user_expressions: Map[String, String],
+    payload: List[Map[String, String]] = Nil,
+    user_expressions: Map[String, String] = Map.empty,
     status: ExecutionStatus.ok.type = ExecutionStatus.ok
   ) extends ExecuteReply
 

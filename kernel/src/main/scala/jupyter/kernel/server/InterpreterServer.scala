@@ -12,38 +12,30 @@ import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 import acyclic.file
 
 object InterpreterServer extends LazyLogging {
-  private def sendStatus(send: (Channel, Message) => Unit, parentHeader: Option[Header], state: ExecutionState): Unit =
-    send(
-      Channel.Publish,
-      ParsedMessage(
-        "status" :: Nil,
-        Header(msg_id=NbUUID.randomUUID(),
-          username="scala_kernel",
-          session=NbUUID.randomUUID(),
-          msg_type="status",
-          version = Protocol.versionStrOpt
-        ),
-        parentHeader,
-        Map.empty,
-        Output.Status(
-          execution_state=state)
-      ).toMessage
-    )
-
-  private def sendStarting(send: (Channel, Message) => Unit, parentHeader: Option[Header]) =
-    sendStatus(send, parentHeader, ExecutionState.starting)
-
-
-  // FIXME Move elsewhere
-  def start(
+  def apply(
     socket: MessageSocket,
     connectReply: ConnectReply,
     interpreter: Interpreter
   ) = {
     logger debug "Starting kernel event loop"
-    sendStarting(socket.send, None)
+    socket.send(
+      Channel.Publish,
+      ParsedMessage(
+        "status" :: Nil,
+        Header(
+          msg_id = NbUUID.randomUUID(),
+          username = "scala_kernel",
+          session = NbUUID.randomUUID(),
+          msg_type = "status",
+          version = Protocol.versionStrOpt
+        ),
+        None,
+        Map.empty,
+        Output.Status(ExecutionState.starting)
+      ).toMessage
+    )
 
-    val mainLoop = MessageSocket.process(socket, InterpreterHandler(socket.send, connectReply, interpreter))
+    val mainLoop = MessageSocket.process(socket, InterpreterHandler(interpreter, connectReply, _).map((socket.send _).tupled).run.run)
 
     mainLoop setName "RequestsEventLoop"
     mainLoop.start()

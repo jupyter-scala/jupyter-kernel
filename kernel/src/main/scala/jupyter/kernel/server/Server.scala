@@ -75,7 +75,7 @@ object Server extends LazyLogging {
               override def run() = {
                 socket.startHeartBeat()
 
-                InterpreterServer.start(
+                InterpreterServer(
                   socket,
                   Output.ConnectReply(
                     shell_port=connection.shell_port,

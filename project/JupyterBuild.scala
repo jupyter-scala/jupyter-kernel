@@ -45,7 +45,8 @@ object JupyterBuild extends Build {
     resolvers ++= Seq(
       "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
       Resolver.sonatypeRepo("releases"),
-      Resolver.sonatypeRepo("snapshots")
+      Resolver.sonatypeRepo("snapshots"),
+      "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
     ),
     scalacOptions += "-target:jvm-1.7",
     ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
@@ -85,7 +86,8 @@ object JupyterBuild extends Build {
         "com.typesafe" % "config" % "1.2.1",
         "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "0.1.0",
         "org.zeromq" % "jeromq" % "0.3.4",
-        "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2"
+        "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
+        "org.scalaz.stream" %% "scalaz-stream" % "0.6a"
       ),
       libraryDependencies ++= {
         if (scalaVersion.value startsWith "2.10.") Seq(

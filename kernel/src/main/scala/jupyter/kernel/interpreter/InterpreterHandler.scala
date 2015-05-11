@@ -4,149 +4,123 @@ package interpreter
 
 import MessageSocket.Channel
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import protocol._, Formats._, Output.{LanguageInfo, ConnectReply}
+import protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
-import scalaz.{\/-, -\/}
+import scalaz.concurrent.Task
+import scalaz.stream.Process
+import scalaz.{ \/-, -\/ }
 
 import acyclic.file
 
 object InterpreterHandler extends LazyLogging {
-  private def sendOk(msg: ParsedMessage[_], executionCount: Int): Message =
-    msg.reply(
-      "execute_reply",
-      Output.ExecuteOkReply(
-        execution_count=executionCount,
-        payload=Nil,
-        user_expressions=Map.empty
-      )
-    )
+  private def ok(msg: ParsedMessage[_], executionCount: Int): Message =
+    msg.reply("execute_reply", Output.ExecuteOkReply(execution_count = executionCount))
 
-  private def sendError(send: (Channel, Message) => Unit, msg: ParsedMessage[_], executionCount: Int, error: String): Message =
-    sendError(send, msg, Output.Error(executionCount, "", "", error.split("\n").toList))
+  private def abort(msg: ParsedMessage[_], executionCount: Int): Message =
+    msg.reply("execute_reply", Output.ExecuteAbortReply(execution_count = executionCount))
 
-  private def sendError(send: (Channel, Message) => Unit, msg: ParsedMessage[_], err: Output.Error): Message = {
-    send(
-      Channel.Publish,
-      msg.pub(
-        "error",
-        err
-      )
-    )
+  private def status(parentHeader: Option[Header], state: ExecutionState) =
+    ParsedMessage(
+      "status" :: Nil,
+      Header(msg_id=NbUUID.randomUUID(),
+        username="scala_kernel",
+        session=NbUUID.randomUUID(),
+        msg_type="status",
+        version = Protocol.versionStrOpt
+      ),
+      parentHeader,
+      Map.empty,
+      Output.Status(execution_state = state)
+    ).toMessage
 
-    msg.reply(
-      "execute_reply",
-      Output.ExecuteErrorReply(
-        execution_count=err.execution_count,
-        ename=err.ename,
-        evalue=err.evalue,
-        traceback=err.traceback
-      )
-    )
-  }
-
-  private def sendAbort(msg: ParsedMessage[_], executionCount: Int): Message =
-    msg.reply(
-      "execute_reply",
-      Output.ExecuteAbortReply(
-        execution_count=executionCount
-      )
-    )
-
-  private def sendStream(send: (Channel, Message) => Unit, msg: ParsedMessage[_], name: String, data: String): Unit =
-    send(Channel.Publish, msg.pub("stream", Output.Stream(name=name, text=data)))
-
-  private def busy[T](send: (Channel, Message) => Unit, parentHeader: Option[Header])(block: => T): T = {
-    sendStatus(send, parentHeader, ExecutionState.busy)
-
-    try block
-    finally {
-      sendStatus(send, parentHeader, ExecutionState.idle)
-    }
-  }
-
-  private def sendStatus(send: (Channel, Message) => Unit, parentHeader: Option[Header], state: ExecutionState): Unit =
-    send(
-      Channel.Publish,
-      ParsedMessage(
-        "status" :: Nil,
-        Header(msg_id=NbUUID.randomUUID(),
-          username="scala_kernel",
-          session=NbUUID.randomUUID(),
-          msg_type="status",
-          version = Protocol.versionStrOpt
-        ),
-        parentHeader,
-        Map.empty,
-        Output.Status(
-          execution_state=state)
-      ).toMessage
-    )
-
-  private def execute(send: (Channel, Message) => Unit, interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Message = {
+  private def execute(interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Process[Task, (Channel, Message)] = {
     val content = msg.content
     val code = content.code
     val silent = content.silent || code.trim.endsWith(";")
 
     if (code.trim.isEmpty)
-      sendOk(msg, interpreter.executionCount)
+      Process.emit(Channel.Requests -> ok(msg, interpreter.executionCount))
     else {
-      send(
-        Channel.Publish,
-        msg.pub(
-          "execute_input",
-          Output.ExecuteInput(
-            execution_count = interpreter.executionCount + 1,
-            code = code
-          )
-        )
-      )
+      val (q, publish) = jupyter.kernel.util.blockingQueueStream[Message]()
 
-      busy(send, Some(msg.header)) {
-        def stream(name: String): String => Unit =
-          if (silent)
-            _ => ()
-          else
-            sendStream(send, msg, name, _)
+      val res = Task {
+        try {
+          def error(msg: ParsedMessage[_], err: Output.Error): Message = {
+            q put Some(msg.pub("error", err))
 
-        val toStdout = stream("stdout")
-        val toStderr = stream("stderr")
+            msg.reply(
+              "execute_reply",
+              Output.ExecuteErrorReply(
+                execution_count = err.execution_count,
+                ename = err.ename,
+                evalue = err.evalue,
+                traceback = err.traceback
+              )
+            )
+          }
 
-        interpreter.interpret(code, Some(toStdout, toStderr), content.store_history getOrElse !silent) match {
-          case Interpreter.Value(repr) if !silent =>
-            send(
-              Channel.Publish,
-              msg.pub(
+          def _error(msg: ParsedMessage[_], executionCount: Int, err: String): Message =
+            error(msg, Output.Error(executionCount, "", "", err.split("\n").toList))
+
+          interpreter.interpret(
+            code,
+            if (silent) Some(_ => (), _ => ()) else Some(s => q put Some(msg.pub("stream", Output.Stream(name = "stdout", text = s))), s => q put Some(msg.pub("stream", Output.Stream(name = "stderr", text = s)))),
+            content.store_history getOrElse !silent
+          ) match {
+            case Interpreter.Value(repr) if !silent =>
+              q put Some(msg.pub(
                 "execute_result",
                 Output.ExecuteResult(
                   execution_count = interpreter.executionCount,
                   data = repr.data.toMap
                 )
-              )
-            )
+              ))
 
-            sendOk(msg, interpreter.executionCount)
+              ok(msg, interpreter.executionCount)
 
-          case _: Interpreter.Value if silent =>
-            sendOk(msg, interpreter.executionCount)
+            case _: Interpreter.Value if silent =>
+              ok(msg, interpreter.executionCount)
 
-          case Interpreter.NoValue =>
-            sendOk(msg, interpreter.executionCount)
+            case Interpreter.NoValue =>
+              ok(msg, interpreter.executionCount)
 
-          case exc @ Interpreter.Exception(name, message, _, _) =>
-            sendError(send, msg, Output.Error(interpreter.executionCount, name, message, exc.traceBack))
+            case exc@Interpreter.Exception(name, message, _, _) =>
+              error(msg, Output.Error(interpreter.executionCount, name, message, exc.traceBack))
 
-          case Interpreter.Error(errorMsg) =>
-            sendError(send, msg, interpreter.executionCount, errorMsg)
+            case Interpreter.Error(errorMsg) =>
+              _error(msg, interpreter.executionCount, errorMsg)
 
-          case Interpreter.Incomplete =>
-            sendError(send, msg, interpreter.executionCount, "incomplete")
+            case Interpreter.Incomplete =>
+              _error(msg, interpreter.executionCount, "incomplete")
 
-          case Interpreter.Cancelled =>
-            sendAbort(msg, interpreter.executionCount)
+            case Interpreter.Cancelled =>
+              abort(msg, interpreter.executionCount)
+          }
+        } finally {
+          q put None
         }
       }
+
+      val start =
+        Process.emitAll(Seq(
+          Channel.Publish -> msg.pub(
+            "execute_input",
+            Output.ExecuteInput(
+              execution_count = interpreter.executionCount + 1,
+              code = code
+            )
+          ),
+          Channel.Publish -> status(Some(msg.header), ExecutionState.busy)
+        ))
+
+      val end =
+        Process.emit(
+          Channel.Publish -> status(Some(msg.header), ExecutionState.idle)
+        )
+
+      start ++ publish.map(Channel.Publish.->) ++ Process.eval(res).map(Channel.Requests.->) ++ end
     }
   }
 
@@ -185,17 +159,11 @@ object InterpreterHandler extends LazyLogging {
       connectReply
     )
 
-  private def shutdown(send: (Channel, Message) => Unit, msg: ParsedMessage[Input.ShutdownRequest]): Message = {
-    send(
-      Channel.Requests,
-      msg.reply(
-        "shutdown_reply",
-        Output.ShutdownReply(restart=msg.content.restart)
-      )
+  private def shutdown(msg: ParsedMessage[Input.ShutdownRequest]): Message =
+    msg.reply(
+      "shutdown_reply",
+      Output.ShutdownReply(restart=msg.content.restart)
     )
-    Console.err println s"Shutting down kernel"
-    sys.exit() // FIXME Handle that with a callback
-  }
 
   private def objectInfo(msg: ParsedMessage[Input.ObjectInfoRequest]): Message =
     msg.reply(
@@ -218,50 +186,47 @@ object InterpreterHandler extends LazyLogging {
   private def commClose(msg: ParsedMessage[InputOutput.CommClose]): Unit =
     println(msg)
 
-  def apply(
-    send: (Channel, Message) => Unit,
-    connectReply: ConnectReply,
-    interpreter: Interpreter
-  ): Message => Unit = { rawMsg =>
-    rawMsg.decode match {
+  def apply(interpreter: Interpreter, connectReply: ConnectReply, msg: Message): Process[Task, (Channel, Message)] = {
+    def single(m: Message) = Process.emit(Channel.Requests -> m)
+
+    msg.decode match {
       case -\/(err) =>
         logger error s"Decoding message: $err"
+        Process.halt
 
-      case \/-(msg) =>
-        val reply: Message =
-          (msg.header.msg_type, msg.content) match {
-            case ("execute_request", r: Input.ExecuteRequest) =>
-              execute(send, interpreter, msg.copy(content = r))
-            case ("complete_request", r: Input.CompleteRequest) =>
-              complete(interpreter, msg.copy(content = r))
-            case ("kernel_info_request", r: Input.KernelInfoRequest) =>
-              kernelInfo(msg.copy(content = r))
-            case ("object_info_request", r: Input.ObjectInfoRequest) =>
-              objectInfo(msg.copy(content = r))
-            case ("connect_request", r: Input.ConnectRequest) =>
-              connect(connectReply: ConnectReply, msg.copy(content = r))
-            case ("shutdown_request", r: Input.ShutdownRequest) =>
-              shutdown(send, msg.copy(content = r))
-            case ("history_request", r: Input.HistoryRequest) =>
-              history(msg.copy(content = r))
+      case \/-(parsedMessage) =>
+        (parsedMessage.header.msg_type, parsedMessage.content) match {
+          case ("execute_request", r: Input.ExecuteRequest) =>
+            execute(interpreter, parsedMessage.copy(content = r))
+          case ("complete_request", r: Input.CompleteRequest) =>
+            single(complete(interpreter, parsedMessage.copy(content = r)))
+          case ("kernel_info_request", r: Input.KernelInfoRequest) =>
+            single(kernelInfo(parsedMessage.copy(content = r)))
+          case ("object_info_request", r: Input.ObjectInfoRequest) =>
+            single(objectInfo(parsedMessage.copy(content = r)))
+          case ("connect_request", r: Input.ConnectRequest) =>
+            single(connect(connectReply: ConnectReply, parsedMessage.copy(content = r)))
+          case ("shutdown_request", r: Input.ShutdownRequest) =>
+            // FIXME Propagate shutdown request
+            single(shutdown(parsedMessage.copy(content = r)))
+          case ("history_request", r: Input.HistoryRequest) =>
+            single(history(parsedMessage.copy(content = r)))
 
-            // FIXME These are not handled well
-            case ("comm_open", r: InputOutput.CommOpen) =>
-              commOpen(msg.copy(content = r))
-              msg.reply("bad_request", Json.obj()) // ???
-            case ("comm_msg", r: InputOutput.CommMsg) =>
-              commMsg(msg.copy(content = r))
-              msg.reply("bad_request", Json.obj()) // ???
-            case ("comm_close", r: InputOutput.CommClose) =>
-              commClose(msg.copy(content = r))
-              msg.reply("bad_request", Json.obj()) // ???
+          // FIXME These are not handled well
+          case ("comm_open", r: InputOutput.CommOpen) =>
+            commOpen(parsedMessage.copy(content = r))
+            single(parsedMessage.reply("bad_request", Json.obj())) // ???
+          case ("comm_msg", r: InputOutput.CommMsg) =>
+            commMsg(parsedMessage.copy(content = r))
+            single(parsedMessage.reply("bad_request", Json.obj())) // ???
+          case ("comm_close", r: InputOutput.CommClose) =>
+            commClose(parsedMessage.copy(content = r))
+            single(parsedMessage.reply("bad_request", Json.obj())) // ???
 
-            case _ =>
-              logger debug s"Unrecognized message: $msg ($rawMsg)"
-              msg.reply("bad_request", Json.obj())
-          }
-
-        send(Channel.Requests, reply)
+          case _ =>
+            logger debug s"Unrecognized message: $parsedMessage ($msg)"
+            single(parsedMessage.reply("bad_request", Json.obj()))
+        }
     }
   }
 }
