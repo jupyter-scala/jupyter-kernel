@@ -43,6 +43,7 @@ trait Interpreter {
   def executionCount: Int
   def languageInfo: LanguageInfo
   def publish(publish: Publish[ParsedMessage[_]]): Unit = {}
+  def resultDisplay = false
 }
 
 object Interpreter {

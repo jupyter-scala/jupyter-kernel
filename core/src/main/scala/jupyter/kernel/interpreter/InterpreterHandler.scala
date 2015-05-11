@@ -69,13 +69,25 @@ object InterpreterHandler {
             Some(msg)
           ) match {
             case Interpreter.Value(repr) if !silent =>
-              q.enqueueOne(msg.pub(
-                "execute_result",
-                Output.ExecuteResult(
-                  execution_count = interpreter.executionCount,
-                  data = repr.data.toMap
-                )
-              )).run
+              q.enqueueOne(
+                if (interpreter.resultDisplay)
+                  msg.pub(
+                    "display_data",
+                    Output.DisplayData(
+                      source = "interpreter",
+                      data = repr.data.toMap,
+                      metadata = Map.empty
+                    )
+                  )
+                else
+                  msg.pub(
+                    "execute_result",
+                    Output.ExecuteResult(
+                      execution_count = interpreter.executionCount,
+                      data = repr.data.toMap
+                    )
+                  )
+              ).run
 
               ok(msg, interpreter.executionCount)
 
