@@ -8,8 +8,8 @@ package object config {
     def kernels: Map[String, (Kernel, KernelInfo)]
   }
 
-  def kernelSpecsFromConfig(specs: KernelSpecs, configName: String): Unit = {
-    val kernelConfig = ConfigFactory load configName
+  def kernelSpecsFromConfig(specs: KernelSpecs, configName: String, classLoader: ClassLoader = getClass.getClassLoader): Unit = {
+    val kernelConfig = ConfigFactory.load(classLoader, configName)
 
     def configMap(c: Config, path: String): Map[String, ConfigValue] = {
       import scala.collection.JavaConverters._
@@ -20,7 +20,7 @@ package object config {
         Map.empty
     }
 
-    val runtimeMirror = scala.reflect.runtime.universe runtimeMirror getClass.getClassLoader
+    val runtimeMirror = scala.reflect.runtime.universe runtimeMirror classLoader
     import runtimeMirror.{reflectModule, staticModule}
 
     for ((moduleId, v: ConfigObject) <- configMap(kernelConfig, "jupyter.modules")) {
