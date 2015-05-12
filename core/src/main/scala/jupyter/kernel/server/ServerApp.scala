@@ -6,6 +6,7 @@ import java.io.{PrintWriter, File}
 import java.util.concurrent.Executors
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
+import jupyter.kernel.protocol.{ Kernel => KernelDesc }
 
 import scala.compat.Platform._
 import scalaz._
@@ -42,15 +43,20 @@ object ServerApp extends LazyLogging {
         Console.err println s"Warning: cannot create directory $parentDir, attempting to generate kernel spec anyway."
     }
 
+    val conn = KernelDesc(
+      List(progPath) ++ extraProgArgs ++ List("--quiet", "--connection-file", "{connection_file}"),
+      kernelInfo.name,
+      kernelInfo.language
+    )
+
+    val connStr = {
+      import argonaut._, Argonaut._, Shapeless._
+      conn.asJson.spaces2
+    }
+
     // FIXME Encode this properly
     val p = new PrintWriter(kernelJsonFile)
-    p write
-      s"""{
-         |  "argv": ${(List(progPath) ++ extraProgArgs ++ List("--quiet", "--connection-file", "{connection_file}")).map("\"" + _ + "\"").mkString("[", ", ", "]")},
-         |  "display_name": "${kernelInfo.name}",
-         |  "language": "${kernelInfo.language}"
-         |}
-       """.stripMargin
+    p.write(connStr)
     p.close()
 
     if (!options.options.quiet) {

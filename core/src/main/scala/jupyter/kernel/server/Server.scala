@@ -107,7 +107,7 @@ object Server extends LazyLogging {
       }
       connFile = {
         Some(options.connectionFile).filter(_.nonEmpty).getOrElse(s"jupyter-kernel_${pid()}.json") match {
-          case path if path contains '/' =>
+          case path if path contains File.separatorChar =>
             new File(path)
           case secure =>
             (new File(homeDir) /: List(".ipython", s"profile_default", "secure", secure))(new File(_, _))
