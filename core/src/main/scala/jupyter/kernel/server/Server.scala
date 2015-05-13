@@ -29,9 +29,8 @@ object Server extends LazyLogging {
   def newConnectionFile(connFile: File): Connection = {
     def randomPort(): Int = {
       val s = new ServerSocket(0)
-      val p = s.getLocalPort
-      s.close()
-      p
+      try s.getLocalPort
+      finally s.close()
     }
 
     val c = Connection(
@@ -54,8 +53,8 @@ object Server extends LazyLogging {
     )
 
     val w = new PrintWriter(connFile)
-    w write c.asJson.spaces2
-    w.close()
+    try w.write(c.asJson.spaces2)
+    finally w.close()
 
     c
   }
@@ -122,11 +121,17 @@ object Server extends LazyLogging {
           val c = newConnectionFile(connFile)
           logger info s"Creating ipython connection file ${connFile.getAbsolutePath}"
           \/-(c)
-        } else
-          io.Source.fromFile(connFile).mkString.decodeEither[Connection].leftMap { err =>
-            logger error s"Loading connection file: $err"
-            new Exception(s"Error while loading connection file: $err")
-          }
+        } else {
+          val s = io.Source.fromFile(connFile)
+          try {
+            s.mkString.decodeEither[Connection].leftMap { err =>
+              logger error s"Loading connection file: $err"
+              new Exception(s"Error while loading connection file: $err")
+            }
+          } finally s.close() // For Windows: closes the underlying connection file as early as possible (instead
+                              // of waiting for GC to make it happen later), so that we don't hinder it be overwritten,
+                              // e.g. if the kernel is restarted.
+        }
       }
       streams <- \/.fromTryCatchNonFatal(ZMQStreams(connection, isServer = false, identity = Some(kernelId))) .leftMap { err =>
         new Exception(s"Unable to open connection: $err", err)
