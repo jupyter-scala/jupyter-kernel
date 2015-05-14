@@ -118,9 +118,9 @@ object Server extends LazyLogging {
       }
       connection <- {
         if (options.eraseConnectionFile || !connFile.exists()) {
-          val c = newConnectionFile(connFile)
           logger info s"Creating ipython connection file ${connFile.getAbsolutePath}"
-          \/-(c)
+          connFile.getParentFile.mkdirs()
+          \/-(newConnectionFile(connFile))
         } else {
           val s = io.Source.fromFile(connFile)
           try {

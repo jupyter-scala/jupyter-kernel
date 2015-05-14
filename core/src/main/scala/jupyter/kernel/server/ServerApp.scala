@@ -14,7 +14,6 @@ import scalaz._
 case class ServerAppOptions(
   options: Server.Options = Server.Options(),
   exitOnKeyPress: Boolean = false,
-  kernelSpec: Boolean = false,
   force: Boolean = false
 )
 
@@ -68,7 +67,7 @@ object ServerApp extends LazyLogging {
 
 
   def apply(kernelId: String, kernel: Kernel, kernelInfo: KernelInfo, progPath: => String, options: ServerAppOptions = ServerAppOptions(), extraProgArgs: Seq[String] = Nil): Unit = {
-    if (options.kernelSpec)
+    if (options.options.connectionFile.isEmpty)
       generateKernelSpec(kernelId, kernelInfo, progPath, options, extraProgArgs)
     else
       Server(kernel, kernelId, options.options)(Executors.newCachedThreadPool()) match {
