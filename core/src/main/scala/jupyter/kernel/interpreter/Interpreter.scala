@@ -38,7 +38,7 @@ object DisplayData {
 }
 
 trait Interpreter {
-  def init(output: Option[(String => Unit, String => Unit)]): Unit = {}
+  def init(): Unit = {}
   def initialized: Boolean = true
   def publish(publish: Publish[ParsedMessage[_]]): Unit = {}
 

@@ -25,7 +25,7 @@ object Helpers {
       }
     def complete(code: String, pos: Int): (Int, Seq[String]) = (pos, Nil)
     var executionCount = 0
-    val languageInfo = LanguageInfo("echo", "x-echo", "echo", "text/x-echo")
+    val languageInfo = LanguageInfo("echo", "0.1", "x-echo", "echo", "text/x-echo")
   }
 
   def randomConnectReply() = ConnectReply(randomInt(), randomInt(), randomInt(), randomInt())
@@ -60,7 +60,7 @@ object Helpers {
   }
 
   case class Req[T: EncodeJson](msgType: String, t: T) {
-    def apply(idents: List[String], userName: String, sessionId: NbUUID, version: Option[String]): (Message, Header) = {
+    def apply(idents: List[Seq[Byte]], userName: String, sessionId: NbUUID, version: Option[String]): (Message, Header) = {
       val msg = ParsedMessage(
         idents, Header(randomUUID(), userName, sessionId, msgType, version), None, Map.empty,
         t
@@ -71,19 +71,19 @@ object Helpers {
   }
 
   sealed trait Reply {
-    def apply(defaultIdents: List[String], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]): String \/ (Channel, ParsedMessage[_])
+    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]): String \/ (Channel, ParsedMessage[_])
   }
   case class ReqReply[T](msgType: String, t: T) extends Reply {
-    def apply(defaultIdents: List[String], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]) =
+    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]) =
       (Requests -> ParsedMessage(defaultIdents, Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t)).right
   }
   case class PubReply[T](idents: List[String], msgType: String, t: T) extends Reply {
-    def apply(defaultIdents: List[String], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]) =
-      (Publish -> ParsedMessage(idents, Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t)).right
+    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]) =
+      (Publish -> ParsedMessage(idents.map(_.getBytes("UTF-8").toSeq), Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t)).right
   }
 
   def session(intp: Interpreter, version: Option[String], connectReply: ConnectReply)(msgs: (Req[_], Seq[Reply])*) = {
-    val idents = List.empty[String]
+    val idents = List.empty[Seq[Byte]]
     val userName = "user"
     val sessionId = randomUUID()
     val commonId = randomUUID()

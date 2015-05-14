@@ -14,7 +14,8 @@ import scalaz.concurrent.Task
 import scalaz.stream.{ Process, Sink }
 
 object ZMQStreams extends LazyLogging {
-  private val DELIMITER = "<IDS|MSG>"
+  private val delimiter = "<IDS|MSG>"
+  private val delimiterBytes: Seq[Byte] = delimiter.getBytes("UTF-8")
   private val pollingDelay = 1000L
 
   def apply(connection: Connection, isServer: Boolean, identity: Option[String]): Streams = {
@@ -29,7 +30,7 @@ object ZMQStreams extends LazyLogging {
     def toURI(port: Int) = s"${connection.transport}://${connection.ip}:$port"
 
     for (id <- identity) {
-      val _id = id.getBytes
+      val _id = id.getBytes("UTF-8")
       requests setIdentity _id
       control setIdentity _id
       stdin setIdentity _id
@@ -94,8 +95,8 @@ object ZMQStreams extends LazyLogging {
             logger debug s"Sending $msg on $channel"
 
             Task[Unit] {
-              msg.idents foreach { s.send(_, ZMQ.SNDMORE) }
-              s.send(DELIMITER, ZMQ.SNDMORE)
+              msg.idents.map(_.toArray) foreach { s.send(_, ZMQ.SNDMORE) }
+              s.send(delimiterBytes.toArray, ZMQ.SNDMORE)
               s.send(if (connection.key.isEmpty) "" else hmac(msg.header, msg.parentHeader, msg.metaData, msg.content), ZMQ.SNDMORE)
               s.send(msg.header, ZMQ.SNDMORE)
               s.send(msg.parentHeader, ZMQ.SNDMORE)
@@ -122,6 +123,12 @@ object ZMQStreams extends LazyLogging {
       def read() = Task {
         logger debug s"Reading message on $channel... ($connection)"
 
+        def recvIdent(): Seq[Byte] = {
+          val m = s.recv()
+          logger debug s"Received message chunk '$m'"
+          m
+        }
+
         def recv(): String = {
           val m = s.recvStr()
           logger debug s"Received message chunk '$m'"
@@ -129,7 +136,7 @@ object ZMQStreams extends LazyLogging {
         }
 
         val (idents, signature, header, parentHeader, metaData, content) = (
-          if (connection.key.nonEmpty) Stream.continually(recv()).takeWhile(_ != DELIMITER).toList else Nil,
+          if (connection.key.nonEmpty) Stream.continually(recvIdent()).takeWhile(_ != delimiterBytes).toList else Nil,
           if (connection.key.nonEmpty) recv() else Nil,
           recv(),
           recv(),

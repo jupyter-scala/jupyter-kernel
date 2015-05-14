@@ -103,7 +103,7 @@ object InterpreterServer extends LazyLogging {
       {
         pubQueue enqueueOne {
           ParsedMessage(
-            "status" :: Nil,
+            "status".getBytes("UTF-8") :: Nil,
             Header(
               msg_id = NbUUID.randomUUID(),
               username = "scala_kernel",

@@ -33,7 +33,7 @@ object Message {
 }
 
 case class Message(
-  idents: List[String],
+  idents: List[Seq[Byte]],
   header: String,
   parentHeader: String,
   metaData: String,
@@ -108,7 +108,6 @@ case class Message(
 
   def toJsonStr: String =
     s"""{
-     |  "idents": ${idents.map(_.asJson.nospaces).mkString("[", ", ", "]")},
      |  "header": $header,
      |  "parent_header": $parentHeader,
      |  "metadata": $metaData,

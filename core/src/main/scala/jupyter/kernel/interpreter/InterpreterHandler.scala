@@ -20,7 +20,7 @@ object InterpreterHandler {
 
   private def status(parentHeader: Option[Header], state: ExecutionState) =
     ParsedMessage(
-      "status" :: Nil,
+      "status".getBytes("UTF-8") :: Nil,
       Header(
         msg_id = NbUUID.randomUUID(),
         username = parentHeader.map(_.username) getOrElse "",
@@ -33,25 +33,31 @@ object InterpreterHandler {
       Output.Status(execution_state = state)
     ).toMessage
 
-  private def publishing(msg: ParsedMessage[_])(f: (Message => Unit) => Seq[Message]): Process[Task, (Channel, Message)] = {
-    val q = scalaz.stream.async.boundedQueue[Message](1000)
-
-    val res = Task.unsafeStart {
-      try f(q.enqueueOne(_).run)
-      finally q.close.run
-    }
-
+  private def busy(msg: ParsedMessage[_])(f: => Process[Task, (Channel, Message)]): Process[Task, (Channel, Message)] = {
     val start =
-      Process.emitAll(Seq(
+      Process.emit(
         Channel.Publish -> status(Some(msg.header), ExecutionState.busy)
-      ))
+      )
 
     val end =
       Process.emit(
         Channel.Publish -> status(Some(msg.header), ExecutionState.idle)
       )
 
-    start ++ q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).flatMap(l => Process.emitAll(l.map(Channel.Requests.->))) ++ end
+    start ++ f ++ end
+  }
+
+  private def publishing(msg: ParsedMessage[_])(f: (Message => Unit) => Seq[Message]): Process[Task, (Channel, Message)] = {
+    busy(msg) {
+      val q = scalaz.stream.async.boundedQueue[Message](1000)
+
+      val res = Task.unsafeStart {
+        try f(q.enqueueOne(_).run)
+        finally q.close.run
+      }
+
+      q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).flatMap(l => Process.emitAll(l.map(Channel.Requests.->)))
+    }
   }
 
   private def execute(interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Process[Task, String \/ (Channel, Message)] = {
@@ -218,13 +224,7 @@ object InterpreterHandler {
               if (interpreter.initialized)
                 Process.empty
               else
-                publishing(parsedMessage) { pub =>
-                  interpreter.init(Some(
-                    s => pub(parsedMessage.pub("stream", Output.Stream(name = "stdout", text = s))),
-                    s => pub(parsedMessage.pub("stream", Output.Stream(name = "stderr", text = s)))
-                  ))
-                  Nil
-                } .map(\/-(_))
+                busy(parsedMessage) { interpreter.init(); Process.empty } .map(\/-(_))
             }
 
           case ("execute_request", r: Input.ExecuteRequest) =>

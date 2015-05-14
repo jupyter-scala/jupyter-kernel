@@ -273,7 +273,7 @@ case class Header(
 
 
 case class ParsedMessage[Content](
-  idents: List[String],
+  idents: List[Seq[Byte]],
   header: Header,
   parent_header: Option[Header],
   metadata: Map[String, String],
@@ -285,7 +285,7 @@ case class ParsedMessage[Content](
     header.copy(msg_id = NbUUID.randomUUID(), msg_type = msgType)
 
   private def replyMsg[ReplyContent: EncodeJson](
-    idents: List[String], 
+    idents: List[Seq[Byte]],
     msgType: String,
     content: ReplyContent, 
     metadata: Map[String, String]
@@ -309,7 +309,7 @@ case class ParsedMessage[Content](
       case _ => msgType
     }
     
-    replyMsg(tpe :: Nil, msgType, content, metadata)
+    replyMsg(tpe.getBytes("UTF-8") :: Nil, msgType, content, metadata)
   }
 
   def reply[ReplyContent: EncodeJson](
@@ -521,6 +521,7 @@ object Output {
 
   case class LanguageInfo(
     name: String,
+    version: String,
     codemirror_mode: String,
     file_extension: String,
     mimetype: String
@@ -528,7 +529,7 @@ object Output {
   )
 
   object LanguageInfo {
-    val empty = LanguageInfo("", "", "", "")
+    val empty = LanguageInfo("", "", "", "", "")
   }
 
   case class KernelInfoReplyV4(
@@ -538,7 +539,7 @@ object Output {
     def toKernelInfoReply: KernelInfoReply =
       KernelInfoReply(
         protocol_version = protocol_version.map(_.toString) mkString ".",
-        language_info = LanguageInfo(language, language, "", ""),
+        language_info = LanguageInfo(language, "", language, "", ""),
         implementation = "",
         implementation_version = "",
         banner = ""
