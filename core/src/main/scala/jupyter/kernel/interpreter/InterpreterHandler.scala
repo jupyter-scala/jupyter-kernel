@@ -33,6 +33,27 @@ object InterpreterHandler {
       Output.Status(execution_state = state)
     ).toMessage
 
+  private def publishing(msg: ParsedMessage[_])(f: (Message => Unit) => Seq[Message]): Process[Task, (Channel, Message)] = {
+    val q = scalaz.stream.async.boundedQueue[Message](1000)
+
+    val res = Task.unsafeStart {
+      try f(q.enqueueOne(_).run)
+      finally q.close.run
+    }
+
+    val start =
+      Process.emitAll(Seq(
+        Channel.Publish -> status(Some(msg.header), ExecutionState.busy)
+      ))
+
+    val end =
+      Process.emit(
+        Channel.Publish -> status(Some(msg.header), ExecutionState.idle)
+      )
+
+    start ++ q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).flatMap(l => Process.emitAll(l.map(Channel.Requests.->))) ++ end
+  }
+
   private def execute(interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Process[Task, String \/ (Channel, Message)] = {
     val content = msg.content
     val code = content.code
@@ -41,97 +62,89 @@ object InterpreterHandler {
     if (code.trim.isEmpty)
       Process.emit(\/-(Channel.Requests -> ok(msg, interpreter.executionCount)))
     else {
-      val q = scalaz.stream.async.boundedQueue[Message](1000)
-
-      val res = Task.unsafeStart {
-        try {
-          def error(msg: ParsedMessage[_], err: Output.Error): Message = {
-            q.enqueueOne(msg.pub("error", err)).run
-
-            msg.reply(
-              "execute_reply",
-              Output.ExecuteErrorReply(
-                execution_count = err.execution_count,
-                ename = err.ename,
-                evalue = err.evalue,
-                traceback = err.traceback
-              )
-            )
-          }
-
-          def _error(msg: ParsedMessage[_], executionCount: Int, err: String): Message =
-            error(msg, Output.Error(executionCount, "", "", err.split("\n").toList))
-
-          interpreter.interpret(
-            code,
-            if (silent) Some(_ => (), _ => ()) else Some(s => q.enqueueOne(msg.pub("stream", Output.Stream(name = "stdout", text = s))).run, s => q.enqueueOne(msg.pub("stream", Output.Stream(name = "stderr", text = s))).run),
-            content.store_history getOrElse !silent,
-            Some(msg)
-          ) match {
-            case Interpreter.Value(repr) if !silent =>
-              q.enqueueOne(
-                if (interpreter.resultDisplay)
-                  msg.pub(
-                    "display_data",
-                    Output.DisplayData(
-                      source = "interpreter",
-                      data = repr.data.toMap,
-                      metadata = Map.empty
-                    )
-                  )
-                else
-                  msg.pub(
-                    "execute_result",
-                    Output.ExecuteResult(
-                      execution_count = interpreter.executionCount,
-                      data = repr.data.toMap
-                    )
-                  )
-              ).run
-
-              ok(msg, interpreter.executionCount)
-
-            case _: Interpreter.Value if silent =>
-              ok(msg, interpreter.executionCount)
-
-            case Interpreter.NoValue =>
-              ok(msg, interpreter.executionCount)
-
-            case exc@Interpreter.Exception(name, message, _, _) =>
-              error(msg, Output.Error(interpreter.executionCount, name, message, exc.traceBack))
-
-            case Interpreter.Error(errorMsg) =>
-              _error(msg, interpreter.executionCount, errorMsg)
-
-            case Interpreter.Incomplete =>
-              _error(msg, interpreter.executionCount, "incomplete")
-
-            case Interpreter.Cancelled =>
-              abort(msg, interpreter.executionCount)
-          }
-        } finally {
-          q.close.run
-        }
-      }
-
       val start =
         Process.emitAll(Seq(
-          Channel.Publish -> msg.pub(
+          \/-(Channel.Publish -> msg.pub(
             "execute_input",
             Output.ExecuteInput(
               execution_count = interpreter.executionCount + 1,
               code = code
             )
-          ),
-          Channel.Publish -> status(Some(msg.header), ExecutionState.busy)
+          ))
         ))
 
-      val end =
-        Process.emit(
-          Channel.Publish -> status(Some(msg.header), ExecutionState.idle)
-        )
+      start ++ publishing(msg) { pub =>
+        def error(msg: ParsedMessage[_], err: Output.Error): Message = {
+          pub(msg.pub("error", err))
 
-      (start ++ q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).map(Channel.Requests.->) ++ end).map(\/-(_))
+          msg.reply(
+            "execute_reply",
+            Output.ExecuteErrorReply(
+              execution_count = err.execution_count,
+              ename = err.ename,
+              evalue = err.evalue,
+              traceback = err.traceback
+            )
+          )
+        }
+
+        def _error(msg: ParsedMessage[_], executionCount: Int, err: String): Message =
+          error(msg, Output.Error(executionCount, "", "", err.split("\n").toList))
+
+        Seq(interpreter.interpret(
+          code,
+          if (silent)
+            Some(_ => (), _ => ())
+          else
+            Some(
+              s => pub(msg.pub("stream", Output.Stream(name = "stdout", text = s))),
+              s => pub(msg.pub("stream", Output.Stream(name = "stderr", text = s)))
+            ),
+          content.store_history getOrElse !silent,
+          Some(msg)
+        ) match {
+          case Interpreter.Value(repr) if !silent =>
+            pub(
+              if (interpreter.resultDisplay)
+                msg.pub(
+                  "display_data",
+                  Output.DisplayData(
+                    source = "interpreter",
+                    data = repr.data.toMap,
+                    metadata = Map.empty
+                  )
+                )
+              else
+                msg.pub(
+                  "execute_result",
+                  Output.ExecuteResult(
+                    execution_count = interpreter.executionCount,
+                    data = repr.data.toMap
+                  )
+                )
+            )
+
+            ok(msg, interpreter.executionCount)
+
+          case _: Interpreter.Value if silent =>
+            ok(msg, interpreter.executionCount)
+
+          case Interpreter.NoValue =>
+            ok(msg, interpreter.executionCount)
+
+          case exc@Interpreter.Exception(name, message, _, _) =>
+            error(msg, Output.Error(interpreter.executionCount, name, message, exc.traceBack))
+
+          case Interpreter.Error(errorMsg) =>
+            _error(msg, interpreter.executionCount, errorMsg)
+
+          case Interpreter.Incomplete =>
+            _error(msg, interpreter.executionCount, "incomplete")
+
+          case Interpreter.Cancelled =>
+            abort(msg, interpreter.executionCount)
+        })
+      } .map(\/-(_))
     }
   }
 
@@ -150,12 +163,15 @@ object InterpreterHandler {
     )
   }
 
-  private def kernelInfo(languageInfo: LanguageInfo, msg: ParsedMessage[Input.KernelInfoRequest]): Message =
+  private def kernelInfo(implementation: (String, String), banner: String, languageInfo: LanguageInfo, msg: ParsedMessage[Input.KernelInfoRequest]): Message =
     msg.reply(
       "kernel_info_reply",
       Output.KernelInfoReply(
         protocol_version = s"${Protocol.version._1}.${Protocol.version._2}",
-        language_info = languageInfo
+        implementation = implementation._1,
+        implementation_version = implementation._2,
+        language_info = languageInfo,
+        banner = banner
       )
     )
 
@@ -198,7 +214,18 @@ object InterpreterHandler {
           case ("connect_request", r: Input.ConnectRequest) =>
             single(connect(connectReply: ConnectReply, parsedMessage.copy(content = r)))
           case ("kernel_info_request", r: Input.KernelInfoRequest) =>
-            single(kernelInfo(interpreter.languageInfo, parsedMessage.copy(content = r)))
+            single(kernelInfo(interpreter.implementation, interpreter.banner, interpreter.languageInfo, parsedMessage.copy(content = r))) ++ {
+              if (interpreter.initialized)
+                Process.empty
+              else
+                publishing(parsedMessage) { pub =>
+                  interpreter.init(Some(
+                    s => pub(parsedMessage.pub("stream", Output.Stream(name = "stdout", text = s))),
+                    s => pub(parsedMessage.pub("stream", Output.Stream(name = "stderr", text = s)))
+                  ))
+                  Nil
+                } .map(\/-(_))
+            }
 
           case ("execute_request", r: Input.ExecuteRequest) =>
             execute(interpreter, parsedMessage.copy(content = r))

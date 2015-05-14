@@ -538,13 +538,20 @@ object Output {
     def toKernelInfoReply: KernelInfoReply =
       KernelInfoReply(
         protocol_version = protocol_version.map(_.toString) mkString ".",
-        language_info = LanguageInfo(language, language, "", "")
+        language_info = LanguageInfo(language, language, "", ""),
+        implementation = "",
+        implementation_version = "",
+        banner = ""
       )
   }
 
   case class KernelInfoReply(
     protocol_version: String,
-    language_info: LanguageInfo
+    implementation: String,
+    implementation_version: String,
+    language_info: LanguageInfo,
+    banner: String
+    // help_links: Map[String, String] // optional
   ) {
     def toKernelInfoReplyV4: KernelInfoReplyV4 =
       KernelInfoReplyV4(

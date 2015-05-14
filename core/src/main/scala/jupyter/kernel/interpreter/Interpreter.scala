@@ -38,11 +38,17 @@ object DisplayData {
 }
 
 trait Interpreter {
+  def init(output: Option[(String => Unit, String => Unit)]): Unit = {}
+  def initialized: Boolean = true
+  def publish(publish: Publish[ParsedMessage[_]]): Unit = {}
+
   def interpret(line: String, output: Option[(String => Unit, String => Unit)], storeHistory: Boolean, current: Option[ParsedMessage[_]]): Interpreter.Result
   def complete(code: String, pos: Int): (Int, Seq[String])
   def executionCount: Int
+
   def languageInfo: LanguageInfo
-  def publish(publish: Publish[ParsedMessage[_]]): Unit = {}
+  def implementation = ("", "")
+  def banner = ""
   def resultDisplay = false
 }
 

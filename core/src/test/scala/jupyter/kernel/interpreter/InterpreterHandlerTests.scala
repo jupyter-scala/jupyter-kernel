@@ -43,7 +43,7 @@ object InterpreterHandlerTests extends TestSuite {
     'kernelInfo{
       session(
         Req("kernel_info_request", KernelInfoRequest()) -> Seq(
-          ReqReply("kernel_info_reply", KernelInfoReply("5.0", echoInterpreter().languageInfo))
+          ReqReply("kernel_info_reply", KernelInfoReply("5.0", "", "", echoInterpreter().languageInfo, ""))
         )
       )
     }
