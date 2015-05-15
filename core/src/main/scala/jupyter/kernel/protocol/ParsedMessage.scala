@@ -524,12 +524,12 @@ object Output {
     version: String,
     codemirror_mode: String,
     file_extension: String,
-    mimetype: String
-    // pygments_lexer: String
+    mimetype: String,
+    pygments_lexer: String
   )
 
   object LanguageInfo {
-    val empty = LanguageInfo("", "", "", "", "")
+    val empty = LanguageInfo("", "", "", "", "", "")
   }
 
   case class KernelInfoReplyV4(
@@ -539,7 +539,7 @@ object Output {
     def toKernelInfoReply: KernelInfoReply =
       KernelInfoReply(
         protocol_version = protocol_version.map(_.toString) mkString ".",
-        language_info = LanguageInfo(language, "", language, "", ""),
+        language_info = LanguageInfo(language, "", language, "", "", language),
         implementation = "",
         implementation_version = "",
         banner = ""

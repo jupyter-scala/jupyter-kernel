@@ -25,7 +25,7 @@ object Helpers {
       }
     def complete(code: String, pos: Int): (Int, Seq[String]) = (pos, Nil)
     var executionCount = 0
-    val languageInfo = LanguageInfo("echo", "0.1", "x-echo", "echo", "text/x-echo")
+    val languageInfo = LanguageInfo("echo", "0.1", "x-echo", "echo", "text/x-echo", "")
   }
 
   def randomConnectReply() = ConnectReply(randomInt(), randomInt(), randomInt(), randomInt())

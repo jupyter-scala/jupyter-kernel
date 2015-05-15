@@ -2,7 +2,8 @@ package jupyter
 package kernel
 package server
 
-import java.io.{PrintWriter, File}
+import java.io.{ PrintWriter, File }
+import java.nio.file.Files
 import java.util.concurrent.Executors
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
@@ -19,7 +20,13 @@ case class ServerAppOptions(
 
 object ServerApp extends LazyLogging {
 
-  def generateKernelSpec(kernelId: String, kernelInfo: KernelInfo, progPath: => String, options: ServerAppOptions = ServerAppOptions(), extraProgArgs: Seq[String] = Nil): Unit = {
+  def generateKernelSpec(kernelId: String,
+                         kernelInfo: KernelInfo,
+                         progPath: => String,
+                         options: ServerAppOptions = ServerAppOptions(),
+                         extraProgArgs: Seq[String] = Nil,
+                         logos: => Seq[((Int, Int), Array[Byte])] = Nil): Unit = {
+
     if (options.options.copy(quiet = false) != Server.Options())
       Console.err println s"Warning: ignoring kernel launching options when kernel spec option specified"
 
@@ -53,22 +60,42 @@ object ServerApp extends LazyLogging {
       conn.asJson.spaces2
     }
 
-    // FIXME Encode this properly
     val p = new PrintWriter(kernelJsonFile)
-    p.write(connStr)
-    p.close()
+    try p.write(connStr)
+    finally p.close()
+
+    for (((w, h), b) <- logos) {
+      val f = (new File(homeDir) /: List(".ipython", "kernels", kernelId, s"logo-${w}x$h.png"))(new File(_, _))
+      if (options.force || !f.exists()) {
+        Files.write(f.toPath, b)
+      }
+    }
 
     if (!options.options.quiet) {
-      Console.out println s"Generated $kernelJsonFile\n"
-      Console.out println s"Run ipython console with this kernel with\n  ipython console --kernel ${if (kernelId.exists(_.isSpaceChar)) "\"" + kernelId + "\"" else kernelId}\n"
-      Console.out println "Use this kernel from IPython notebook, running\n  ipython notebook\nand selecting the \"" + kernelInfo.name + "\" kernel"
+      println(
+        s"""Generated $kernelJsonFile
+           |
+           |Run ipython console with this kernel with
+           |  ipython console --kernel ${if (kernelId.exists(_.isSpaceChar)) "\"" + kernelId + "\"" else kernelId}
+           |
+           |Use this kernel from IPython notebook, running
+           |  ipython notebook
+           |and selecting the "${kernelInfo.name}" kernel.
+         """.stripMargin)
     }
   }
 
 
-  def apply(kernelId: String, kernel: Kernel, kernelInfo: KernelInfo, progPath: => String, options: ServerAppOptions = ServerAppOptions(), extraProgArgs: Seq[String] = Nil): Unit = {
+  def apply(kernelId: String,
+            kernel: Kernel,
+            kernelInfo: KernelInfo,
+            progPath: => String,
+            options: ServerAppOptions = ServerAppOptions(),
+            extraProgArgs: Seq[String] = Nil,
+            logos: => Seq[((Int, Int), Array[Byte])] = Nil): Unit = {
+
     if (options.options.connectionFile.isEmpty)
-      generateKernelSpec(kernelId, kernelInfo, progPath, options, extraProgArgs)
+      generateKernelSpec(kernelId, kernelInfo, progPath, options, extraProgArgs, logos)
     else
       Server(kernel, kernelId, options.options)(Executors.newCachedThreadPool()) match {
         case -\/(err) =>
