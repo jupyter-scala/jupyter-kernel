@@ -42,7 +42,7 @@ object InterpreterServer extends LazyLogging {
         def parse(s: String): Json =
           Parse.parse(s).leftMap(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
 
-        reqQueue.enqueueOne(msg match {
+        pubQueue.enqueueOne(msg match {
           case CommOpen(target, data) =>
             t.pub("comm_open", InputOutput.CommOpen(id, target, parse(data)))
           case CommMessage(data) =>
