@@ -63,7 +63,7 @@ object InterpreterHandler {
   private def execute(interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Process[Task, String \/ (Channel, Message)] = {
     val content = msg.content
     val code = content.code
-    val silent = content.silent || code.trim.endsWith(";")
+    val silent = content.silent
 
     if (code.trim.isEmpty)
       Process.emit(\/-(Channel.Requests -> ok(msg, interpreter.executionCount)))
