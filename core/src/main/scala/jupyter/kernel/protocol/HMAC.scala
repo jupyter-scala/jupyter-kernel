@@ -21,7 +21,7 @@ object HMAC {
       new HMAC {
         private val _algorithm = "hmac-sha256".replace("-", "")
         private val mac = Mac.getInstance(_algorithm)
-        private val keySpec = new SecretKeySpec(key.getBytes, _algorithm)
+        private val keySpec = new SecretKeySpec(key.getBytes("UTF-8"), _algorithm)
 
         mac init keySpec
 
@@ -29,7 +29,7 @@ object HMAC {
 
         def apply(args: String*) = mac.synchronized {
           for (s <- args)
-            mac update s.getBytes
+            mac update s.getBytes("UTF-8")
 
           hex(mac.doFinal())
         }
