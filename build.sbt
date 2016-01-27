@@ -29,7 +29,7 @@ lazy val cli = project
   .settings(
     name := "jupyter-meta-kernel",
     libraryDependencies ++= Seq(
-      "com.github.alexarchambault" %% "case-app" % "0.2.2",
+      "com.github.alexarchambault" %% "case-app" % "0.3.0",
       "ch.qos.logback" % "logback-classic" % "1.0.13"
     )
   )

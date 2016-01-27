@@ -498,11 +498,17 @@ object Output {
     val execution_count: Int
   }
 
+  // FIXME These aliases seem to be required in 2.10 for codec derivation to be fine.
+  // Don't know why. Probably an issue at the argonaut-shapeless or shapeless itself level.
+  type ExecutionStatusOkType = ExecutionStatus.ok.type
+  type ExecutionStatusErrorType = ExecutionStatus.error.type
+  type ExecutionStatusAbortType = ExecutionStatus.abort.type
+
   case class ExecuteOkReply(
     execution_count: Int,
     payload: List[Map[String, String]] = Nil,
     user_expressions: Map[String, String] = Map.empty,
-    status: ExecutionStatus.ok.type = ExecutionStatus.ok
+    status: ExecutionStatusOkType = ExecutionStatus.ok
   ) extends ExecuteReply
 
   case class ExecuteErrorReply(
@@ -510,12 +516,12 @@ object Output {
     ename: String,
     evalue: String,
     traceback: List[String],
-    status: ExecutionStatus.error.type = ExecutionStatus.error
+    status: ExecutionStatusErrorType = ExecutionStatus.error
   ) extends ExecuteReply
 
   case class ExecuteAbortReply(
     execution_count: Int,
-    status: ExecutionStatus.abort.type = ExecutionStatus.abort
+    status: ExecutionStatusAbortType = ExecutionStatus.abort
   ) extends ExecuteReply
 
   sealed trait ObjectInfoReply extends Product with Serializable {
