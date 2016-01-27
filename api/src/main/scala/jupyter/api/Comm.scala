@@ -7,7 +7,7 @@ case class CommMessage(data: String) extends CommChannelMessage
 case class CommClose(data: String) extends CommChannelMessage
 
 trait Comm[T] { self =>
-  def id: NbUUID
+  def id: String
 
   def send(msg: CommChannelMessage)(implicit t: T): Unit
 

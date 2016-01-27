@@ -10,7 +10,7 @@ trait Publish[T] { self =>
    * Bidirectional communication channel with the front-end.
    * WIP, doesn't work yet.
    */
-  def comm(id: NbUUID): Comm[T]
+  def comm(id: String): Comm[T]
 
 
   def contramap[U](f: U => T): Publish[U] =
@@ -18,6 +18,6 @@ trait Publish[T] { self =>
       def stdout(text: String)(implicit u: U) = self.stdout(text)(f(u))
       def stderr(text: String)(implicit u: U) = self.stderr(text)(f(u))
       def display(source: String, items: (String, String)*)(implicit u: U) = self.display(source, items: _*)(f(u))
-      def comm(id: NbUUID) = self.comm(id).contramap(f)
+      def comm(id: String) = self.comm(id).contramap(f)
     }
 }

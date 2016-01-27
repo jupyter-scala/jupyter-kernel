@@ -3,7 +3,7 @@ package kernel.interpreter
 
 import argonaut.Json
 import jupyter.kernel.Kernel
-import jupyter.api.{Publish, NbUUID}
+import jupyter.api.Publish
 import jupyter.kernel.protocol.Output.LanguageInfo
 import jupyter.kernel.protocol.ParsedMessage
 

@@ -4,7 +4,7 @@ import jupyter.kernel.{ Message, Channel }, Channel._
 import jupyter.kernel.interpreter.DisplayData.RawData
 import jupyter.kernel.protocol.Output.{ Error => _, _ }
 import jupyter.kernel.protocol._
-import jupyter.api.NbUUID, NbUUID.randomUUID
+import java.util.UUID
 import jupyter.kernel.interpreter.Interpreter._
 
 import scala.util.Random.{ nextInt => randomInt }
@@ -30,7 +30,7 @@ object Helpers {
 
   def randomConnectReply() = ConnectReply(randomInt(), randomInt(), randomInt(), randomInt())
 
-  def parse(m: String \/ (Channel, Message), id: NbUUID = randomUUID()): String \/ (Channel, ParsedMessage[_]) =
+  def parse(m: String \/ (Channel, Message), id: String = UUID.randomUUID().toString): String \/ (Channel, ParsedMessage[_]) =
     m.flatMap{ case (c, msg) =>
       msg.decode.map(m => c -> m.copy(header = m.header.copy(msg_id = id)))
     }
@@ -60,9 +60,9 @@ object Helpers {
   }
 
   case class Req[T: EncodeJson](msgType: String, t: T) {
-    def apply(idents: List[Seq[Byte]], userName: String, sessionId: NbUUID, version: Option[String]): (Message, Header) = {
+    def apply(idents: List[Seq[Byte]], userName: String, sessionId: String, version: Option[String]): (Message, Header) = {
       val msg = ParsedMessage(
-        idents, Header(randomUUID(), userName, sessionId, msgType, version), None, Map.empty,
+        idents, Header(UUID.randomUUID().toString, userName, sessionId, msgType, version), None, Map.empty,
         t
       )
 
@@ -71,22 +71,22 @@ object Helpers {
   }
 
   sealed trait Reply {
-    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]): String \/ (Channel, ParsedMessage[_])
+    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]): String \/ (Channel, ParsedMessage[_])
   }
   case class ReqReply[T](msgType: String, t: T) extends Reply {
-    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]) =
+    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]) =
       (Requests -> ParsedMessage(defaultIdents, Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t)).right
   }
   case class PubReply[T](idents: List[String], msgType: String, t: T) extends Reply {
-    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: NbUUID, replyId: NbUUID, parHdr: Header, version: Option[String]) =
+    def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]) =
       (Publish -> ParsedMessage(idents.map(_.getBytes("UTF-8").toSeq), Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t)).right
   }
 
   def session(intp: Interpreter, version: Option[String], connectReply: ConnectReply)(msgs: (Req[_], Seq[Reply])*) = {
     val idents = List.empty[Seq[Byte]]
     val userName = "user"
-    val sessionId = randomUUID()
-    val commonId = randomUUID()
+    val sessionId = UUID.randomUUID().toString
+    val commonId = UUID.randomUUID().toString
     for (((req, replies), idx) <- msgs.zipWithIndex) {
       val (msg, msgHdr) = req(idents, userName, sessionId, version)
       val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr, version))

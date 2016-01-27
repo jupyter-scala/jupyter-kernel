@@ -3,19 +3,21 @@ package kernel
 package stream
 package zmq
 
+import java.util.UUID
 import java.io.{ PrintWriter, File }
 import java.net.{ ServerSocket, InetAddress }
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.api.NbUUID
-import protocol._
+
+import jupyter.kernel.protocol._
+
 import scalaz.\/
 
 import scala.sys.process._
 
 object ZMQKernel extends LazyLogging {
   def newConnection(): Connection = {
-    val key = NbUUID.randomUUID().toString
+    val key = UUID.randomUUID().toString
     val ip = {
       val s = InetAddress.getLocalHost.toString
       val idx = s.lastIndexOf('/')
@@ -87,7 +89,7 @@ object ZMQKernel extends LazyLogging {
     StreamKernel.from {
       for {
         x <- \/.fromTryCatchNonFatal {
-          val connectionFile = new File(connectionsDir, s"kernel-${NbUUID.randomUUID()}.json")
+          val connectionFile = new File(connectionsDir, s"kernel-${UUID.randomUUID()}.json")
           val c = newConnection()
           writeConnection(c, connectionFile)
           (c, connectionFile)

@@ -2,17 +2,21 @@ package jupyter
 package kernel
 package server
 
+import java.util.UUID
 import java.io.{PrintWriter, File}
 import java.lang.management.ManagementFactory
 import java.net.{InetAddress, ServerSocket}
 import java.util.concurrent.ExecutorService
+
 import argonaut._, Argonaut._
+
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.api.NbUUID
+
 import jupyter.kernel.stream.{StreamKernel, Streams}
 import jupyter.kernel.stream.zmq.ZMQStreams
 import jupyter.kernel.protocol.{Connection, Output, Formats}, Formats._
-import interpreter.InterpreterKernel
+import jupyter.kernel.interpreter.InterpreterKernel
+
 import scalaz._, Scalaz._
 
 import scalaz.concurrent.Task
@@ -48,7 +52,7 @@ object Server extends LazyLogging {
       hb_port = randomPort(),
       shell_port = randomPort(),
       iopub_port = randomPort(),
-      key = NbUUID.randomUUID().toString,
+      key = UUID.randomUUID().toString,
       signature_scheme = Some("hmac-sha256")
     )
 

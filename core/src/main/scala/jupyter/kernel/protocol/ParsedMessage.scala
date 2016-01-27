@@ -2,7 +2,7 @@ package jupyter
 package kernel
 package protocol
 
-import jupyter.api.NbUUID
+import java.util.UUID
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
@@ -96,21 +96,6 @@ object Formats {
 
   implicit def connectionDecodeJson = implicitly[DecodeJson[Connection]]
   implicit def connectionEncodeJson = implicitly[EncodeJson[Connection]]
-
-  implicit val decodeUUID = DecodeJson[NbUUID] { c =>
-    StringDecodeJson.decode(c).flatMap { s =>
-      NbUUID.fromString(s) match {
-        case Some(uuid) =>
-          DecodeResult.ok(uuid)
-        case None =>
-          DecodeResult.fail(s"Invalid UUID: $s", c.history)
-      }
-    }
-  }
-
-  implicit val encodeUUID = EncodeJson[NbUUID] { uuid =>
-    Json.jString(uuid.toString)
-  }
 
   implicit val encodeExecutionStatusOk: EncodeJson[ExecutionStatus.ok.type] =
     EncodeJson.StringEncodeJson.contramap[ExecutionStatus.ok.type](_.toString)
@@ -248,9 +233,9 @@ case class ArgSpec(
 
 
 case class HeaderV4(
-  msg_id: NbUUID,
+  msg_id: String,
   username: String,
-  session: NbUUID,
+  session: String,
   msg_type: String
 ) {
   def toHeader: Header =
@@ -264,9 +249,9 @@ case class HeaderV4(
 }
 
 case class Header(
-  msg_id: NbUUID,
+  msg_id: String,
   username: String,
-  session: NbUUID,
+  session: String,
   msg_type: String,
   version: Option[String]
 )
@@ -282,7 +267,7 @@ case class ParsedMessage[Content](
   import Formats._
 
   private def replyHeader(msgType: String): Header =
-    header.copy(msg_id = NbUUID.randomUUID(), msg_type = msgType)
+    header.copy(msg_id = UUID.randomUUID().toString, msg_type = msgType)
 
   private def replyMsg[ReplyContent: EncodeJson](
     idents: List[Seq[Byte]],
@@ -379,18 +364,18 @@ object InputOutput {
   trait Comm
 
   case class CommOpen(
-    comm_id: NbUUID,
+    comm_id: String,
     target_name: String,
     data: Json
   ) extends Comm
 
   case class CommMsg(
-    comm_id: NbUUID,
+    comm_id: String,
     data: Json
   ) extends Comm
 
   case class CommClose(
-    comm_id: NbUUID,
+    comm_id: String,
     data: Json
   ) extends Comm
 

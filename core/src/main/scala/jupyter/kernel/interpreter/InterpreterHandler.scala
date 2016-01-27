@@ -2,6 +2,8 @@ package jupyter
 package kernel
 package interpreter
 
+import java.util.UUID
+
 import jupyter.api._
 import protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 
@@ -22,9 +24,9 @@ object InterpreterHandler {
     ParsedMessage(
       "status".getBytes("UTF-8") :: Nil,
       Header(
-        msg_id = NbUUID.randomUUID(),
-        username = parentHeader.map(_.username) getOrElse "",
-        session = parentHeader.map(_.session) getOrElse NbUUID.randomUUID(),
+        msg_id = UUID.randomUUID().toString,
+        username = parentHeader.fold("")(_.username),
+        session = parentHeader.fold(UUID.randomUUID().toString)(_.session),
         msg_type = "status",
         version = Protocol.versionStrOpt
       ),
@@ -209,7 +211,7 @@ object InterpreterHandler {
 
   def apply(interpreter: Interpreter,
             connectReply: ConnectReply,
-            commHandler: (NbUUID, CommChannelMessage) => Unit,
+            commHandler: (String, CommChannelMessage) => Unit,
             msg: Message): Process[Task, String \/ (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>

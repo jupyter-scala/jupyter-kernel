@@ -3,15 +3,19 @@ package kernel
 package stream
 package zmq
 
+import java.util.UUID
 import java.io.File
 import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.api.NbUUID
-import protocol._, Formats._
+
+import jupyter.kernel.protocol._, Formats._
+
 import argonaut._, Argonaut._
+
 import scalaz.concurrent.{Task, Strategy}
 import scalaz.{\/-, -\/, \/}
+
 import scalaz.stream.{ Process, async }
 
 object ZMQMetaKernel {
@@ -65,7 +69,7 @@ object ZMQMetaKernel {
           for {
             _ <- send(ParsedMessage(
               Nil,
-              Header(NbUUID.randomUUID(), "", NbUUID.randomUUID() /* FIXME*/, "meta_kernel_start_request", Protocol.versionStrOpt),
+              Header(UUID.randomUUID().toString, "", UUID.randomUUID().toString /* FIXME*/, "meta_kernel_start_request", Protocol.versionStrOpt),
               None,
               Map.empty,
               Meta.MetaKernelStartRequest()
