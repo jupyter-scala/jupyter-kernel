@@ -116,14 +116,8 @@ object ServerApp extends LazyLogging {
           sys.exit(1)
 
         case \/-((connFile, task)) =>
-          if (!options.options.quiet) {
-            if (options.options.meta)
-              Console.err.println(s"Connect Jove notebook to this kernel with\n  jove-notebook --meta --conn-file ${"\"" + connFile.getAbsolutePath + "\""}")
-            else {
-              Console.err.println(s"Connect ipython to this kernel with\n  ipython console --existing ${"\"" + connFile.getAbsolutePath + "\""}")
-              Console.err.println(s"or Jove notebook with\n  jove-notebook --conn-file ${"\"" + connFile.getAbsolutePath + "\""}")
-            }
-          }
+          if (!options.options.quiet)
+            Console.err.println(s"Connect ipython to this kernel with\n  ipython console --existing ${"\"" + connFile.getAbsolutePath + "\""}")
 
           if (options.exitOnKeyPress) {
             if (!options.options.quiet)

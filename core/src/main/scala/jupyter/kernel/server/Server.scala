@@ -26,7 +26,6 @@ object Server extends LazyLogging {
   case class Options(
     connectionFile: String = "",
     eraseConnectionFile: Boolean = false,
-    meta: Boolean = false,
     quiet: Boolean = false
   )
 
@@ -145,8 +144,7 @@ object Server extends LazyLogging {
         \/-(())
       }
       t <- {
-        if (options.meta) \/.fromTryCatchNonFatal(MetaServer(streams, launch(kernel, _, connection, classLoaderOption), kernelId))
-        else launch(kernel, streams, connection, classLoaderOption)
+        launch(kernel, streams, connection, classLoaderOption)
       }.leftMap(err => new Exception(s"Launching kernel: $err", err))
     } yield (connFile, t)
 }
