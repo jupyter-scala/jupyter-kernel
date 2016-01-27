@@ -5,13 +5,14 @@ package interpreter
 import java.util.UUID
 
 import jupyter.api._
-import protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
+import jupyter.kernel.protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
 import scalaz.concurrent.Task
 import scalaz.stream.Process
-import scalaz.{\/, \/-, -\/}
+import scalaz.{ -\/, \/, \/- }
+import scalaz.Scalaz.ToEitherOps
 
 object InterpreterHandler {
   private def ok(msg: ParsedMessage[_], executionCount: Int): Message =
@@ -62,7 +63,11 @@ object InterpreterHandler {
     }
   }
 
-  private def execute(interpreter: Interpreter, msg: ParsedMessage[Input.ExecuteRequest]): Process[Task, String \/ (Channel, Message)] = {
+  private def execute(
+    interpreter: Interpreter,
+    msg: ParsedMessage[Input.ExecuteRequest]
+  ): Process[Task, String \/ (Channel, Message)] = {
+
     val content = msg.content
     val code = content.code
     val silent = content.silent
@@ -70,16 +75,15 @@ object InterpreterHandler {
     if (code.trim.isEmpty)
       Process.emit(\/-(Channel.Requests -> ok(msg, interpreter.executionCount)))
     else {
-      val start =
-        Process.emitAll(Seq(
-          \/-(Channel.Publish -> msg.pub(
-            "execute_input",
-            Output.ExecuteInput(
-              execution_count = interpreter.executionCount + 1,
-              code = code
-            )
-          ))
+      val start = Process.emitAll(Seq(
+        \/-(Channel.Publish -> msg.pub(
+          "execute_input",
+          Output.ExecuteInput(
+            execution_count = interpreter.executionCount + 1,
+            code = code
+          )
         ))
+      ))
 
       start ++ publishing(msg) { pub =>
         def error(msg: ParsedMessage[_], err: Output.Error): Message = {
@@ -156,8 +160,17 @@ object InterpreterHandler {
     }
   }
 
-  private def complete(interpreter: Interpreter, msg: ParsedMessage[Input.CompleteRequest]): Message = {
-    val pos = Some(msg.content.cursor_pos).filter(_ >= 0) getOrElse msg.content.code.length
+  private def complete(
+    interpreter: Interpreter,
+    msg: ParsedMessage[Input.CompleteRequest]
+  ): Message = {
+
+    val pos =
+      if (msg.content.cursor_pos >= 0)
+        msg.content.cursor_pos
+      else
+        msg.content.code.length
+
     val (i, matches) = interpreter.complete(msg.content.code, pos)
 
     msg.reply(
@@ -171,11 +184,16 @@ object InterpreterHandler {
     )
   }
 
-  private def kernelInfo(implementation: (String, String), banner: String, languageInfo: LanguageInfo, msg: ParsedMessage[Input.KernelInfoRequest]): Message =
+  private def kernelInfo(
+    implementation: (String, String),
+    banner: String,
+    languageInfo: LanguageInfo,
+    msg: ParsedMessage[Input.KernelInfoRequest]
+  ): Message =
     msg.reply(
       "kernel_info_reply",
       Output.KernelInfoReply(
-        protocol_version = s"${Protocol.version._1}.${Protocol.version._2}",
+        protocol_version = s"${Protocol.versionMajor}.${Protocol.versionMinor}",
         implementation = implementation._1,
         implementation_version = implementation._2,
         language_info = languageInfo,
@@ -209,10 +227,12 @@ object InterpreterHandler {
 
   private def single(m: Message) = Process.emit(\/-(Channel.Requests -> m))
 
-  def apply(interpreter: Interpreter,
-            connectReply: ConnectReply,
-            commHandler: (String, CommChannelMessage) => Unit,
-            msg: Message): Process[Task, String \/ (Channel, Message)] =
+  def apply(
+    interpreter: Interpreter,
+    connectReply: ConnectReply,
+    commHandler: (String, CommChannelMessage) => Unit,
+    msg: Message
+  ): Process[Task, String \/ (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>
         Process.emit(-\/(s"Decoding message: $err"))
@@ -221,8 +241,14 @@ object InterpreterHandler {
         (parsedMessage.header.msg_type, parsedMessage.content) match {
           case ("connect_request", r: Input.ConnectRequest) =>
             single(connect(connectReply: ConnectReply, parsedMessage.copy(content = r)))
+
           case ("kernel_info_request", r: Input.KernelInfoRequest) =>
-            single(kernelInfo(interpreter.implementation, interpreter.banner, interpreter.languageInfo, parsedMessage.copy(content = r))) ++ {
+            single(kernelInfo(
+              interpreter.implementation,
+              interpreter.banner,
+              interpreter.languageInfo,
+              parsedMessage.copy(content = r)
+            )) ++ {
               if (interpreter.initialized)
                 Process.empty
               else
@@ -231,8 +257,10 @@ object InterpreterHandler {
 
           case ("execute_request", r: Input.ExecuteRequest) =>
             execute(interpreter, parsedMessage.copy(content = r))
+
           case ("complete_request", r: Input.CompleteRequest) =>
             single(complete(interpreter, parsedMessage.copy(content = r)))
+
           case ("object_info_request", r: Input.ObjectInfoRequest) =>
             single(objectInfo(parsedMessage.copy(content = r)))
 
@@ -248,9 +276,11 @@ object InterpreterHandler {
             // FIXME IPython messaging spec says: if target_name is empty, we should immediately reply with comm_close
             commHandler(r.comm_id, CommOpen(r.target_name, r.data.spaces2))
             Process.halt
+
           case ("comm_msg", r: InputOutput.CommMsg) =>
             commHandler(r.comm_id, CommMessage(r.data.spaces2))
             Process.halt
+
           case ("comm_close", r: InputOutput.CommClose) =>
             commHandler(r.comm_id, CommClose(r.data.spaces2))
             Process.halt

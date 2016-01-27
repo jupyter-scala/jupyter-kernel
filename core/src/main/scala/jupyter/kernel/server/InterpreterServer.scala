@@ -4,28 +4,32 @@ package server
 
 import java.util.UUID
 import java.util.concurrent.ExecutorService
-import argonaut.{Json, Parse}
+
+import argonaut.{ Json, Parse }
 
 import scala.collection.mutable
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import interpreter.{InterpreterHandler, Interpreter}
+
+import interpreter.{ InterpreterHandler, Interpreter }
 import jupyter.api._
 import jupyter.kernel.stream.Streams
 import protocol._, Formats._, jupyter.kernel.protocol.Output.ConnectReply
 
-import scalaz.concurrent.{Strategy, Task}
+import scalaz.concurrent.{ Strategy, Task }
 import scalaz.stream.async
 
-import scalaz.{\/, -\/, \/-}
+import scalaz.{ -\/, \/, \/- }
 
 object InterpreterServer extends LazyLogging {
 
-  def apply(streams: Streams,
-            connectReply: ConnectReply,
-            interpreter: Interpreter)
-           (implicit
-            es: ExecutorService): Task[Unit] = {
+  def apply(
+    streams: Streams,
+    connectReply: ConnectReply,
+    interpreter: Interpreter
+  )(implicit
+    es: ExecutorService
+  ): Task[Unit] = {
 
     implicit val strategy = Strategy.Executor
 

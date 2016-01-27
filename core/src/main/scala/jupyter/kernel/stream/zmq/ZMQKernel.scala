@@ -3,8 +3,9 @@ package kernel
 package stream
 package zmq
 
+import java.nio.file.Files
 import java.util.UUID
-import java.io.{ PrintWriter, File }
+import java.io.File
 import java.net.{ ServerSocket, InetAddress }
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
@@ -14,6 +15,9 @@ import jupyter.kernel.protocol._
 import scalaz.\/
 
 import scala.sys.process._
+
+import argonaut._, Argonaut._, Shapeless._
+
 
 object ZMQKernel extends LazyLogging {
   def newConnection(): Connection = {
@@ -57,24 +61,10 @@ object ZMQKernel extends LazyLogging {
   }
 
   def writeConnection(connection: Connection, connectionFile: File) = {
+    logger.debug(s"Writing $connection to ${connectionFile.getAbsolutePath}")
+
     connectionFile.getParentFile.mkdirs()
-
-    logger debug s"Writing $connection to ${connectionFile.getAbsolutePath}"
-
-    val w = new PrintWriter(connectionFile)
-    w write s"""{
-               |  "stdin_port": ${connection.stdin_port},
-               |  "ip": "${connection.ip}",
-               |  "control_port": ${connection.control_port},
-               |  "hb_port": ${connection.hb_port},
-               |  "signature_scheme": "${connection.signature_scheme}",
-               |  "key": "${connection.key}",
-               |  "shell_port": ${connection.shell_port},
-               |  "transport": "${connection.transport}",
-               |  "iopub_port": ${connection.iopub_port}
-               |}
-             """.stripMargin
-    w.close()
+    Files.write(connectionFile.toPath, connection.asJson.spaces2.getBytes()) // default charset
   }
 
   def apply(kernelId: String, metaCommand: Seq[String], connectionsDir: File): StreamKernel = {
@@ -82,7 +72,7 @@ object ZMQKernel extends LazyLogging {
       val path = connectionFile.getAbsolutePath
       val cmd = metaCommand.map(_.replaceAllLiterally("{connection_file}", path))
 
-      logger debug s"Running command $cmd"
+      logger.debug(s"Running command $cmd")
       cmd.run()
     }
 

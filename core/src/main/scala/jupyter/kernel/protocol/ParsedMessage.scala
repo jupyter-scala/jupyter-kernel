@@ -6,8 +6,10 @@ import java.util.UUID
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
+import shapeless.Witness
+
 import scala.util.Try
-import scalaz.{\/-, -\/, \/}
+import scalaz.{ -\/, \/, \/- }
 
 
 object Formats {
@@ -20,8 +22,8 @@ object Formats {
   implicit lazy val commMsgEncodeJson = EncodeJson.of[InputOutput.CommMsg]
   implicit lazy val commCloseEncodeJson = EncodeJson.of[InputOutput.CommClose]
 
-  implicit lazy val d3 = DecodeJson.of[Output.ExecuteResult]
-  implicit lazy val d4 = DecodeJson.of[Meta.MetaKernelStartReply]
+  implicit lazy val executeResultDecodeJson = DecodeJson.of[Output.ExecuteResult]
+  implicit lazy val metaKernelStartReplyDecodeJson = DecodeJson.of[Meta.MetaKernelStartReply]
 
 
   implicit lazy val inputExecuteRequestDecodeJson = DecodeJson.of[Input.ExecuteRequest]
@@ -176,7 +178,7 @@ object Formats {
 
   implicit val decodeClearOutput: DecodeJson[Output.ClearOutput] =
     DecodeJson[Output.ClearOutput] { c =>
-      c.--\("").focus match {
+      c.--\("wait").focus match {
         case Some(b) => DecodeJson.BooleanDecodeJson.decodeJson(b).map(Output.ClearOutput)
         case None => DecodeResult.fail("ClearOutput", c.history)
       }
@@ -199,25 +201,27 @@ object Formats {
 
 
 object Protocol {
-  val version = (5, 0)
-  val versionStrOpt: Option[String] = Some(s"${version._1}.${version._2}")
+  val versionMajor = 5
+  val versionMinor = 0
+
+  val versionStrOpt: Option[String] = Some(s"$versionMajor.$versionMinor")
 }
 
-sealed trait ExecutionStatus
+sealed trait ExecutionStatus extends Product with Serializable
 object ExecutionStatus {
   case object ok extends ExecutionStatus
   case object error extends ExecutionStatus
   case object abort extends ExecutionStatus
 }
 
-sealed trait HistAccessType
+sealed trait HistAccessType extends Product with Serializable
 object HistAccessType {
   case object range extends HistAccessType
   case object tail extends HistAccessType
   case object search extends HistAccessType
 }
 
-sealed trait ExecutionState
+sealed trait ExecutionState extends Product with Serializable
 object ExecutionState {
   case object busy extends ExecutionState
   case object idle extends ExecutionState
@@ -272,7 +276,7 @@ case class ParsedMessage[Content](
   private def replyMsg[ReplyContent: EncodeJson](
     idents: List[Seq[Byte]],
     msgType: String,
-    content: ReplyContent, 
+    content: ReplyContent,
     metadata: Map[String, String]
   ): Message = {
     val m = ParsedMessage(idents, replyHeader(msgType), Some(header), metadata, content).toMessage
@@ -284,8 +288,8 @@ case class ParsedMessage[Content](
   }
 
   def pub[PubContent: EncodeJson](
-    msgType: String, 
-    content: PubContent, 
+    msgType: String,
+    content: PubContent,
     metadata: Map[String, String] = Map.empty
   ): Message = {
     val tpe = content match {
@@ -293,13 +297,13 @@ case class ParsedMessage[Content](
       case content: Output.StreamV4 => content.name // ???
       case _ => msgType
     }
-    
+
     replyMsg(tpe.getBytes("UTF-8") :: Nil, msgType, content, metadata)
   }
 
   def reply[ReplyContent: EncodeJson](
     msgType: String,
-    content: ReplyContent, 
+    content: ReplyContent,
     metadata: Map[String, String] = Map.empty
   ): Message =
     replyMsg(idents, msgType, content, metadata)
@@ -317,46 +321,99 @@ case class ParsedMessage[Content](
 object ParsedMessage {
   import Formats._
 
-  def decode(message: Message): String \/ ParsedMessage[_] = {
+  def decodeHeader(str: String): String \/ Header =
+    str.decodeEither[Header]
+      .orElse(str.decodeEither[HeaderV4].map(_.toHeader))
+
+  def decodeHeaderOption(str: String): String \/ Option[Header] =
+    str.decodeEither[Option[Header]]
+      .orElse(str.decodeEither[Option[HeaderV4]].map(_.map(_.toHeader)))
+
+  def decodeMetaData(str: String): String \/ Map[String, String] =
+    str.decodeEither[Map[String, String]]
+
+  def decodeInputRequest(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "execute_request"     => Some(str.decodeEither[Input.ExecuteRequest])
+      case "complete_request"    => Some(str.decodeEither[Input.CompleteRequest])
+      case "kernel_info_request" => Some(str.decodeEither[Input.KernelInfoRequest])
+      case "object_info_request" => Some(str.decodeEither[Input.ObjectInfoRequest])
+      case "connect_request"     => Some(str.decodeEither[Input.ConnectRequest])
+      case "shutdown_request"    => Some(str.decodeEither[Input.ShutdownRequest])
+      case "history_request"     => Some(str.decodeEither[Input.HistoryRequest])
+      case "input_reply"         => Some(str.decodeEither[Input.InputReply])
+      case _                     => None
+    }
+
+  def decodeInputOutputMessage(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "comm_open"           => Some(str.decodeEither[InputOutput.CommOpen])
+      case "comm_msg"            => Some(str.decodeEither[InputOutput.CommMsg])
+      case "comm_close"          => Some(str.decodeEither[InputOutput.CommClose])
+      case _                     => None
+    }
+
+  def decodeReply(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "execute_reply"       => Some(
+        str.decodeEither[Output.ExecuteOkReply]
+          .orElse(str.decodeEither[Output.ExecuteErrorReply])
+          .orElse(str.decodeEither[Output.ExecuteAbortReply])
+      )
+      case "object_info_reply"   => Some(
+        str.decodeEither[Output.ObjectInfoNotFoundReply]
+          .orElse(str.decodeEither[Output.ObjectInfoFoundReply])
+      )
+      case "complete_reply"      => Some(str.decodeEither[Output.CompleteReply])
+      case "history_reply"       => Some(str.decodeEither[Output.HistoryReply])
+      case "connect_reply"       => Some(str.decodeEither[Output.ConnectReply])
+      case "kernel_info_reply"   => Some(
+        str.decodeEither[Output.KernelInfoReply]
+          .orElse(str.decodeEither[Output.KernelInfoReplyV4].map(_.toKernelInfoReply))
+      )
+      case "shutdown_reply"      => Some(str.decodeEither[Output.ShutdownReply])
+      case _                     => None
+    }
+  
+  def decodeElem(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "stream"              => Some(
+        str.decodeEither[Output.Stream]
+          .orElse(str.decodeEither[Output.StreamV4].map(_.toStream))
+      )
+      case "display_data"        => Some(str.decodeEither[Output.DisplayData])
+      case "execute_input"       => Some(str.decodeEither[Output.ExecuteInput])
+      case "pyout"               => Some(
+        str.decodeEither[Output.PyOutV3].map(_.toExecuteResult)
+          .orElse(str.decodeEither[Output.PyOutV4].map(_.toExecuteResult))
+      )
+      case "execute_result"      => Some(str.decodeEither[Output.ExecuteResult])
+      case "pyerr"               => Some(str.decodeEither[Output.PyErr].map(_.toError))
+      case "error"               => Some(str.decodeEither[Output.Error])
+      case "status"              => Some(str.decodeEither[Output.Status])
+      case _                     => None
+    }
+
+  def decodeMetaKernelMessage(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "meta_kernel_start_request" => Some(str.decodeEither[Meta.MetaKernelStartRequest])
+      case "meta_kernel_start_reply"   => Some(str.decodeEither[Meta.MetaKernelStartReply])
+      case _                           => None
+    }
+
+  def decode(message: Message): String \/ ParsedMessage[_] =
     for {
-      _header <- message.header.decodeEither[Header] orElse message.header.decodeEither[HeaderV4].map(_.toHeader)
-      _parentHeader <- message.parentHeader.decodeEither[Option[Header]] orElse message.header.decodeEither[Option[HeaderV4]].map(_.map(_.toHeader))
-      _metaData <- message.metaData.decodeEither[Map[String, String]]
-      _content <- _header.msg_type match {
-        case "execute_request"     => message.content.decodeEither[Input.ExecuteRequest]
-        case "complete_request"    => message.content.decodeEither[Input.CompleteRequest]
-        case "kernel_info_request" => message.content.decodeEither[Input.KernelInfoRequest]
-        case "object_info_request" => message.content.decodeEither[Input.ObjectInfoRequest]
-        case "connect_request"     => message.content.decodeEither[Input.ConnectRequest]
-        case "shutdown_request"    => message.content.decodeEither[Input.ShutdownRequest]
-        case "history_request"     => message.content.decodeEither[Input.HistoryRequest]
-        case "input_reply"         => message.content.decodeEither[Input.InputReply]
-        case "comm_open"           => message.content.decodeEither[InputOutput.CommOpen]
-        case "comm_msg"            => message.content.decodeEither[InputOutput.CommMsg]
-        case "comm_close"          => message.content.decodeEither[InputOutput.CommClose]
-        case "execute_reply"       => message.content.decodeEither[Output.ExecuteOkReply]
-          .orElse(message.content.decodeEither[Output.ExecuteErrorReply])
-          .orElse(message.content.decodeEither[Output.ExecuteAbortReply])
-        case "object_info_reply"   => message.content.decodeEither[Output.ObjectInfoNotFoundReply] orElse message.content.decodeEither[Output.ObjectInfoFoundReply]
-        case "complete_reply"      => message.content.decodeEither[Output.CompleteReply]
-        case "history_reply"       => message.content.decodeEither[Output.HistoryReply]
-        case "connect_reply"       => message.content.decodeEither[Output.ConnectReply]
-        case "kernel_info_reply"   => message.content.decodeEither[Output.KernelInfoReply] orElse message.content.decodeEither[Output.KernelInfoReplyV4].map(_.toKernelInfoReply)
-        case "shutdown_reply"      => message.content.decodeEither[Output.ShutdownReply]
-        case "stream"              => message.content.decodeEither[Output.Stream] orElse message.content.decodeEither[Output.StreamV4].map(_.toStream)
-        case "display_data"        => message.content.decodeEither[Output.DisplayData]
-        case "execute_input"       => message.content.decodeEither[Output.ExecuteInput]
-        case "pyout"      => message.content.decodeEither[Output.PyOutV3].map(_.toExecuteResult) orElse message.content.decodeEither[Output.PyOutV4].map(_.toExecuteResult)
-        case "execute_result"      => message.content.decodeEither[Output.ExecuteResult]
-        case "pyerr"               => message.content.decodeEither[Output.PyErr].map(_.toError)
-        case "error"               => message.content.decodeEither[Output.Error]
-        case "status"              => message.content.decodeEither[Output.Status]
-        case "meta_kernel_start_request"   => message.content.decodeEither[Meta.MetaKernelStartRequest]
-        case "meta_kernel_start_reply"   => message.content.decodeEither[Meta.MetaKernelStartReply]
-        case other                 => -\/(s"Unexpected message type: $other")
-      }
-    } yield ParsedMessage(message.idents, _header, _parentHeader, _metaData, _content)
-  }
+      header0 <- decodeHeader(message.header)
+      parentHeader0 <- decodeHeaderOption(message.parentHeader)
+      metaData0 <- decodeMetaData(message.metaData)
+      content0 <-
+        decodeInputRequest(header0.msg_type, message.content)
+          .orElse(decodeInputOutputMessage(header0.msg_type, message.content))
+          .orElse(decodeReply(header0.msg_type, message.content))
+          .orElse(decodeElem(header0.msg_type, message.content))
+          .orElse(decodeMetaKernelMessage(header0.msg_type, message.content))
+          .getOrElse(\/-(s"Unexpected message type: ${header0.msg_type}"))
+    } yield ParsedMessage(message.idents, header0, parentHeader0, metaData0, content0)
 }
 
 object InputOutput {
@@ -429,7 +486,14 @@ object Input {
 
 object Output {
 
-  sealed trait ExecuteReply {
+  val True = Witness(true).value
+  type True = Witness.`true`.T
+
+  val False = Witness(false).value
+  type False = Witness.`false`.T
+
+
+  sealed trait ExecuteReply extends Product with Serializable {
     val status: ExecutionStatus
     val execution_count: Int
   }
@@ -454,14 +518,14 @@ object Output {
     status: ExecutionStatus.abort.type = ExecutionStatus.abort
   ) extends ExecuteReply
 
-  sealed trait ObjectInfoReply {
+  sealed trait ObjectInfoReply extends Product with Serializable {
     val name: String
     val found: Boolean
   }
 
   case class ObjectInfoNotFoundReply(
     name: String,
-    found: Boolean = false // FIXME Should be enforced by a singleton literal type
+    found: False = False
   ) extends ObjectInfoReply
 
   case class ObjectInfoFoundReply(
@@ -483,7 +547,7 @@ object Output {
     call_def: Option[String] = None,
     call_docstring: Option[String] = None,
     source: Option[String] = None,
-    found: Boolean = true // FIXME Should be enforced by a singleton literal type
+    found: True = True
   ) extends ObjectInfoReply
 
   case class CompleteReply(
