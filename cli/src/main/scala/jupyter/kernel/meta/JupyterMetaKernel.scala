@@ -81,7 +81,8 @@ case class JupyterMetaKernel(
       nonEmptyOrElse(language, "scala")
     ),
     progName,
-    options,
+    isJar = false,
+    options = options,
     extraProgArgs = Seq(
       "--meta-connection-file",
       connFile0.getAbsolutePath

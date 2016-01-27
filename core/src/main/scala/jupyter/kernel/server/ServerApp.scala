@@ -15,7 +15,8 @@ import scalaz._
 case class ServerAppOptions(
   options: Server.Options = Server.Options(),
   exitOnKeyPress: Boolean = false,
-  force: Boolean = false
+  force: Boolean = false,
+  noCopy: Boolean = false
 )
 
 object ServerApp extends LazyLogging {
@@ -23,7 +24,8 @@ object ServerApp extends LazyLogging {
   def generateKernelSpec(
     kernelId: String,
     kernelInfo: KernelInfo,
-    progPath: => String,
+    progPath: String,
+    isJar: Boolean,
     options: ServerAppOptions = ServerAppOptions(),
     extraProgArgs: Seq[String] = Nil,
     logos: => Seq[((Int, Int), Array[Byte])] = Nil
@@ -51,8 +53,25 @@ object ServerApp extends LazyLogging {
         Console.err.println(s"Warning: cannot create directory $parentDir, attempting to generate kernel spec anyway.")
     }
 
+    val progPath0 =
+      if (options.noCopy)
+        progPath
+      else {
+        val dest = new File(homeDir, s".ipython/kernels/$kernelId/launcher.jar")
+        dest.getParentFile.mkdirs()
+        Files.copy(new File(progPath).toPath, dest.toPath)
+        dest.getAbsolutePath
+      }
+
+    val launch =
+      if (isJar)
+        // FIXME What if  java  is not in PATH?
+        List("java", "-jar", progPath0)
+      else
+        List(progPath0)
+
     val conn = KernelDesc(
-      List(progPath) ++ extraProgArgs ++ List("--quiet", "--connection-file", "{connection_file}"),
+      launch ++ extraProgArgs ++ List("--quiet", "--connection-file", "{connection_file}"),
       kernelInfo.name,
       kernelInfo.language
     )
@@ -90,13 +109,14 @@ object ServerApp extends LazyLogging {
     kernel: Kernel,
     kernelInfo: KernelInfo,
     progPath: => String,
+    isJar: Boolean,
     options: ServerAppOptions = ServerAppOptions(),
     extraProgArgs: Seq[String] = Nil,
     logos: => Seq[((Int, Int), Array[Byte])] = Nil
   ): Unit = {
 
     if (options.options.connectionFile.isEmpty)
-      generateKernelSpec(kernelId, kernelInfo, progPath, options, extraProgArgs, logos)
+      generateKernelSpec(kernelId, kernelInfo, progPath, isJar, options, extraProgArgs, logos)
     else
       Server(kernel, kernelId, options.options)(Executors.newCachedThreadPool()) match {
         case -\/(err) =>
