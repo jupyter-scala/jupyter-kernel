@@ -42,7 +42,7 @@ lazy val root = project.in(file("."))
 
 lazy val commonSettings = Seq(
   organization := "com.github.alexarchambault.jupyter",
-  scalaVersion := "2.11.6",
+  scalaVersion := "2.11.7",
   scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("releases"),
@@ -94,7 +94,7 @@ lazy val publishSettings = com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSe
     }
   },
   scalacOptions += "-target:jvm-1.7",
-  crossScalaVersions := Seq("2.10.5", "2.11.6"),
+  crossScalaVersions := Seq("2.10.5", "2.11.7"),
   ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
   ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
 ) ++ releaseSettings
