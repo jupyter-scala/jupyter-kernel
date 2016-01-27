@@ -13,7 +13,7 @@ lazy val core = project
     name := "jupyter-kernel",
     libraryDependencies ++= Seq(
       "com.typesafe" % "config" % "1.2.1",
-      "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "0.1.1",
+      "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "1.0.0-SNAPSHOT",
       "org.zeromq" % "jeromq" % "0.3.4",
       "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
       "org.scalaz.stream" %% "scalaz-stream" % "0.6a"
