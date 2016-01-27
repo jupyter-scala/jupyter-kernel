@@ -1,16 +1,12 @@
 
-lazy val api = project
+lazy val `kernel-api` = project.in(file("api"))
   .settings(commonSettings)
-  .settings(
-    name := "jupyter-api"
-  )
 
-lazy val core = project
-  .dependsOn(api)
+lazy val kernel = project.in(file("core"))
+  .dependsOn(`kernel-api`)
   .settings(commonSettings)
   .settings(testSettings)
   .settings(
-    name := "jupyter-kernel",
     libraryDependencies ++= Seq(
       "com.typesafe" % "config" % "1.2.1",
       "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "1.0.0-M1",
@@ -22,21 +18,20 @@ lazy val core = project
     publishArtifact in (Test, packageSrc) := true
   )
 
-lazy val cli = project
-  .dependsOn(core)
+lazy val `kernel-cli` = project.in(file("cli"))
+  .dependsOn(kernel)
   .settings(commonSettings)
   .settings(packAutoSettings)
   .settings(
-    name := "jupyter-meta-kernel",
     libraryDependencies ++= Seq(
       "com.github.alexarchambault" %% "case-app" % "0.3.0",
       "ch.qos.logback" % "logback-classic" % "1.0.13"
     )
   )
 
-lazy val `jupyter-kernel-root` = project.in(file("."))
+lazy val `jupyter-kernel` = project.in(file("."))
   .settings(commonSettings)
-  .aggregate(api, core, cli)
+  .aggregate(`kernel-api`, kernel, `kernel-cli`)
 
 
 lazy val commonSettings = Seq(
@@ -91,6 +86,5 @@ lazy val publishSettings = Seq(
         Credentials(Path.userHome / ".ivy2" / ".credentials")
     }
   },
-  scalacOptions += "-target:jvm-1.7",
-  crossScalaVersions := Seq("2.10.5", "2.11.7")
+  scalacOptions += "-target:jvm-1.7"
 )
