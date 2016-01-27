@@ -1,4 +1,3 @@
-import com.typesafe.sbt.pgp.PgpKeys
 
 lazy val api = project
   .settings(commonSettings)
@@ -8,7 +7,8 @@ lazy val api = project
 
 lazy val core = project
   .dependsOn(api)
-  .settings(commonSettings ++ testSettings: _*)
+  .settings(commonSettings)
+  .settings(testSettings)
   .settings(
     name := "jupyter-kernel",
     libraryDependencies ++= Seq(
@@ -24,8 +24,8 @@ lazy val core = project
 
 lazy val cli = project
   .dependsOn(core)
-  .settings(commonSettings: _*)
-  .settings(packAutoSettings ++ publishPackTxzArchive ++ publishPackZipArchive: _*)
+  .settings(commonSettings)
+  .settings(packAutoSettings)
   .settings(
     name := "jupyter-meta-kernel",
     libraryDependencies ++= Seq(
@@ -34,9 +34,8 @@ lazy val cli = project
     )
   )
 
-lazy val root = project.in(file("."))
-  .settings(name := "jupyter-kernel-root")
-  .settings(commonSettings: _*)
+lazy val `jupyter-kernel-root` = project.in(file("."))
+  .settings(commonSettings)
   .aggregate(api, core, cli)
 
 
@@ -49,21 +48,18 @@ lazy val commonSettings = Seq(
     "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
   ),
   libraryDependencies ++= {
-    if (scalaVersion.value startsWith "2.10.")
-      Seq(compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full))
-    else
-      Seq()
+    if (scalaBinaryVersion.value == "2.10") Seq(
+      compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
+    ) else Nil
   }
 ) ++ publishSettings
 
 lazy val testSettings = Seq(
-  libraryDependencies ++= Seq(
-    "com.lihaoyi" %% "utest" % "0.3.0" % "test"
-  ),
+  libraryDependencies += "com.lihaoyi" %% "utest" % "0.3.0" % "test",
   testFrameworks += new TestFramework("utest.runner.Framework")
 )
 
-lazy val publishSettings = com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSettings ++ Seq(
+lazy val publishSettings = Seq(
   publishMavenStyle := true,
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
@@ -73,16 +69,19 @@ lazy val publishSettings = com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSe
       Some("releases"  at nexus + "service/local/staging/deploy/maven2")
   },
   licenses := Seq("LGPL-3.0" -> url("http://www.gnu.org/licenses/lgpl.txt")),
-  scmInfo := Some(ScmInfo(url("https://github.com/alexarchambault/jupyter-kernel"), "git@github.com:alexarchambault/jupyter-kernel.git")),
+  scmInfo := Some(ScmInfo(
+    url("https://github.com/alexarchambault/jupyter-kernel"),
+    "git@github.com:alexarchambault/jupyter-kernel.git"
+  )),
+  homepage := Some(url("https://github.com/alexarchambault/jupyter-kernel")),
   pomExtra := {
-    <url>https://github.com/alexarchambault/jupyter-kernel</url>
-      <developers>
-        <developer>
-          <id>alexarchambault</id>
-          <name>Alexandre Archambault</name>
-          <url>https://github.com/alexarchambault</url>
-        </developer>
-      </developers>
+    <developers>
+      <developer>
+        <id>alexarchambault</id>
+        <name>Alexandre Archambault</name>
+        <url>https://github.com/alexarchambault</url>
+      </developer>
+    </developers>
   },
   credentials += {
     Seq("SONATYPE_USER", "SONATYPE_PASS").map(sys.env.get) match {
@@ -93,7 +92,5 @@ lazy val publishSettings = com.atlassian.labs.gitstamp.GitStampPlugin.gitStampSe
     }
   },
   scalacOptions += "-target:jvm-1.7",
-  crossScalaVersions := Seq("2.10.5", "2.11.7"),
-  ReleaseKeys.versionBump := sbtrelease.Version.Bump.Bugfix,
-  ReleaseKeys.publishArtifactsAction := PgpKeys.publishSigned.value
-) ++ releaseSettings
+  crossScalaVersions := Seq("2.10.5", "2.11.7")
+)
