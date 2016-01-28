@@ -31,6 +31,7 @@ lazy val `kernel-cli` = project.in(file("cli"))
 
 lazy val `jupyter-kernel` = project.in(file("."))
   .settings(commonSettings)
+  .settings(noPublishSettings)
   .aggregate(`kernel-api`, kernel, `kernel-cli`)
 
 
@@ -87,4 +88,10 @@ lazy val publishSettings = Seq(
     }
   },
   scalacOptions += "-target:jvm-1.7"
+)
+
+lazy val noPublishSettings = Seq(
+  publish := (),
+  publishLocal := (),
+  publishArtifact := false
 )
