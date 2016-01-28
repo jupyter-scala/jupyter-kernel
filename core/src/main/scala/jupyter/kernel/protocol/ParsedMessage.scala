@@ -2,115 +2,262 @@ package jupyter
 package kernel
 package protocol
 
-import jupyter.api.NbUUID
+import java.util.UUID
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
-import scala.util.Try
-import scalaz.{\/-, -\/, \/}
+import shapeless.Witness
 
+import scala.util.Try
+
+import scalaz.{ -\/, \/, \/-, Memo }
+
+object Printer {
+
+  import PrettyParams.nospace._
+
+  import Memo._
+
+  private def vectorMemo() = {
+    var vector: Vector[String] = Vector.empty
+
+    val memoFunction: (Int => String) => Int => String = f => k => {
+      val localVector = vector
+      val adjustedK = if (k < 0) 0 else k
+      if (localVector.size > adjustedK) {
+        localVector(adjustedK)
+      } else {
+        val newVector = Vector.tabulate(adjustedK + 1)(f)
+        vector = newVector
+        newVector.last
+      }
+    }
+    memo(memoFunction)
+  }
+
+  private def addIndentation(s: String): Int => String = {
+    val lastNewLineIndex = s.lastIndexOf("\n")
+    if (lastNewLineIndex < 0) {
+      _ => s
+    } else {
+      val afterLastNewLineIndex = lastNewLineIndex + 1
+      val start = s.substring(0, afterLastNewLineIndex)
+      val end = s.substring(afterLastNewLineIndex)
+      n => start + indent * n + end
+    }
+  }
+
+  private val openBraceText = "{"
+  private val closeBraceText = "}"
+  private val openArrayText = "["
+  private val closeArrayText = "]"
+  private val commaText = ","
+  private val colonText = ":"
+  private val nullText = "null"
+  private val trueText = "true"
+  private val falseText = "false"
+  private val stringEnclosureText = "\""
+
+  private val _lbraceLeft = addIndentation(lbraceLeft)
+  private val _lbraceRight = addIndentation(lbraceRight)
+  private val _rbraceLeft = addIndentation(rbraceLeft)
+  private val _rbraceRight = addIndentation(rbraceRight)
+  private val _lbracketLeft = addIndentation(lbracketLeft)
+  private val _lbracketRight = addIndentation(lbracketRight)
+  private val _rbracketLeft = addIndentation(rbracketLeft)
+  private val _rbracketRight = addIndentation(rbracketRight)
+  private val _lrbracketsEmpty = addIndentation(lrbracketsEmpty)
+  private val _arrayCommaLeft = addIndentation(arrayCommaLeft)
+  private val _arrayCommaRight = addIndentation(arrayCommaRight)
+  private val _objectCommaLeft = addIndentation(objectCommaLeft)
+  private val _objectCommaRight = addIndentation(objectCommaRight)
+  private val _colonLeft = addIndentation(colonLeft)
+  private val _colonRight = addIndentation(colonRight)
+
+  private val lbraceMemo = vectorMemo(){depth: Int => "%s%s%s".format(_lbraceLeft(depth), openBraceText, _lbraceRight(depth + 1))}
+  private val rbraceMemo = vectorMemo(){depth: Int => "%s%s%s".format(_rbraceLeft(depth), closeBraceText, _rbraceRight(depth + 1))}
+
+  private val lbracketMemo = vectorMemo(){depth: Int => "%s%s%s".format(_lbracketLeft(depth), openArrayText, _lbracketRight(depth + 1))}
+  private val rbracketMemo = vectorMemo(){depth: Int => "%s%s%s".format(_rbracketLeft(depth), closeArrayText, _rbracketRight(depth))}
+  private val lrbracketsEmptyMemo = vectorMemo(){depth: Int => "%s%s%s".format(openArrayText, _lrbracketsEmpty(depth), closeArrayText)}
+  private val arrayCommaMemo = vectorMemo(){depth: Int => "%s%s%s".format(_arrayCommaLeft(depth + 1), commaText, _arrayCommaRight(depth + 1))}
+  private val objectCommaMemo = vectorMemo(){depth: Int => "%s%s%s".format(_objectCommaLeft(depth + 1), commaText, _objectCommaRight(depth + 1))}
+  private val colonMemo = vectorMemo(){depth: Int => "%s%s%s".format(_colonLeft(depth + 1), colonText, _colonRight(depth + 1))}
+
+  /**
+    * Returns a string representation of a pretty-printed JSON value.
+    */
+  final def noSpaces(j: Json): String = {
+
+    import Json._
+    import StringEscaping._
+
+    def appendJsonString(builder: StringBuilder, jsonString: String): StringBuilder = {
+      for (c <- jsonString) {
+        if (isNormalChar(c))
+          builder += c
+        else
+          builder.append(escape(c))
+      }
+
+      builder
+    }
+
+    def encloseJsonString(builder: StringBuilder, jsonString: JsonString): StringBuilder = {
+      appendJsonString(builder.append(stringEnclosureText), jsonString).append(stringEnclosureText)
+    }
+
+    def trav(builder: StringBuilder, depth: Int, k: Json): StringBuilder = {
+
+      def lbrace(builder: StringBuilder): StringBuilder = {
+        builder.append(lbraceMemo(depth))
+      }
+      def rbrace(builder: StringBuilder): StringBuilder = {
+        builder.append(rbraceMemo(depth))
+      }
+      def lbracket(builder: StringBuilder): StringBuilder = {
+        builder.append(lbracketMemo(depth))
+      }
+      def rbracket(builder: StringBuilder): StringBuilder = {
+        builder.append(rbracketMemo(depth))
+      }
+      def lrbracketsEmpty(builder: StringBuilder): StringBuilder = {
+        builder.append(lrbracketsEmptyMemo(depth))
+      }
+      def arrayComma(builder: StringBuilder): StringBuilder = {
+        builder.append(arrayCommaMemo(depth))
+      }
+      def objectComma(builder: StringBuilder): StringBuilder = {
+        builder.append(objectCommaMemo(depth))
+      }
+      def colon(builder: StringBuilder): StringBuilder = {
+        builder.append(colonMemo(depth))
+      }
+
+      k.fold[StringBuilder](
+        builder.append(nullText)
+        , bool => builder.append(if (bool) trueText else falseText)
+        , n => n match {
+          case JsonLong(x) => builder append x.toString
+          case JsonDouble(x) => builder append x.toString
+          case JsonDecimal(x) => builder append x
+          case JsonBigDecimal(x) => builder append x.toString
+        }
+        , s => encloseJsonString(builder, s)
+        , e => if (e.isEmpty) {
+          lrbracketsEmpty(builder)
+        } else {
+          rbracket(e.foldLeft((true, lbracket(builder))){case ((firstElement, builder), subElement) =>
+            val withComma = if (firstElement) builder else arrayComma(builder)
+            val updatedBuilder = trav(withComma, depth + 1, subElement)
+            (false, updatedBuilder)
+          }._2)
+        }
+        , o => {
+          rbrace((if (preserveOrder) o.toList else o.toMap).foldLeft((true, lbrace(builder))){case ((firstElement, builder), (key, value)) =>
+            val ignoreKey = dropNullKeys && value.isNull
+            if (ignoreKey) {
+              (firstElement, builder)
+            } else {
+              val withComma = if (firstElement) builder else objectComma(builder)
+              (false, trav(colon(encloseJsonString(withComma, key)), depth + 1, value))
+            }
+          }._2)
+        }
+      )
+    }
+
+    trav(new StringBuilder(), 0, j).toString()
+  }
+
+}
 
 object Formats {
   import Shapeless._
 
-  implicit def commOpenDecodeJson = DecodeJson.derive[InputOutput.CommOpen]
-  implicit def commMsgDecodeJson = DecodeJson.derive[InputOutput.CommMsg]
-  implicit def commCloseDecodeJson = DecodeJson.derive[InputOutput.CommClose]
-  implicit def commOpenEncodeJson = EncodeJson.derive[InputOutput.CommOpen]
-  implicit def commMsgEncodeJson = EncodeJson.derive[InputOutput.CommMsg]
-  implicit def commCloseEncodeJson = EncodeJson.derive[InputOutput.CommClose]
+  implicit lazy val commOpenDecodeJson = DecodeJson.of[InputOutput.CommOpen]
+  implicit lazy val commMsgDecodeJson = DecodeJson.of[InputOutput.CommMsg]
+  implicit lazy val commCloseDecodeJson = DecodeJson.of[InputOutput.CommClose]
+  implicit lazy val commOpenEncodeJson = EncodeJson.of[InputOutput.CommOpen]
+  implicit lazy val commMsgEncodeJson = EncodeJson.of[InputOutput.CommMsg]
+  implicit lazy val commCloseEncodeJson = EncodeJson.of[InputOutput.CommClose]
 
-  implicit def d3 = DecodeJson.derive[Output.ExecuteResult]
-  implicit def d4 = DecodeJson.derive[Meta.MetaKernelStartReply]
-
-
-  implicit def inputExecuteRequestDecodeJson = implicitly[DecodeJson[Input.ExecuteRequest]]
-  implicit def inputCompleteRequestDecodeJson = implicitly[DecodeJson[Input.CompleteRequest]]
-  implicit def inputKernelInfoRequestDecodeJson = implicitly[DecodeJson[Input.KernelInfoRequest]]
-  implicit def inputObjectInfoRequestDecodeJson = implicitly[DecodeJson[Input.ObjectInfoRequest]]
-  implicit def inputConnectRequestDecodeJson = implicitly[DecodeJson[Input.ConnectRequest]]
-  implicit def inputShutdownRequestDecodeJson = implicitly[DecodeJson[Input.ShutdownRequest]]
-  implicit def inputHistoryRequestDecodeJson = implicitly[DecodeJson[Input.HistoryRequest]]
-  implicit def inputInputReplyDecodeJson = implicitly[DecodeJson[Input.InputReply]]
-  implicit def outputExecuteOkReplyDecodeJson = implicitly[DecodeJson[Output.ExecuteOkReply]]
-
-  implicit def outputExecuteErrorReplyDecodeJson = implicitly[DecodeJson[Output.ExecuteErrorReply]]
-  implicit def outputExecuteAbortReplyDecodeJson = implicitly[DecodeJson[Output.ExecuteAbortReply]]
-  implicit def outputObjectInfoNotFoundReplyDecodeJson = implicitly[DecodeJson[Output.ObjectInfoNotFoundReply]]
-  implicit def outputObjectInfoFoundReplyDecodeJson = implicitly[DecodeJson[Output.ObjectInfoFoundReply]]
-  implicit def outputCompleteReplyDecodeJson = implicitly[DecodeJson[Output.CompleteReply]]
-  implicit def outputHistoryReplyDecodeJson = implicitly[DecodeJson[Output.HistoryReply]]
-  implicit def outputConnectReplyDecodeJson = implicitly[DecodeJson[Output.ConnectReply]]
-  implicit def outputKernelInfoReplyDecodeJson = implicitly[DecodeJson[Output.KernelInfoReply]]
-  implicit def outputKernelInfoReplyV4DecodeJson = implicitly[DecodeJson[Output.KernelInfoReplyV4]]
-  implicit def outputShutdownReplyDecodeJson = implicitly[DecodeJson[Output.ShutdownReply]]
-  implicit def outputStreamDecodeJson = implicitly[DecodeJson[Output.Stream]]
-  implicit def outputStreamV4DecodeJson = implicitly[DecodeJson[Output.StreamV4]]
-  implicit def outputDisplayDataDecodeJson = implicitly[DecodeJson[Output.DisplayData]]
-  implicit def outputExecuteInputDecodeJson = implicitly[DecodeJson[Output.ExecuteInput]]
-  implicit def outputPyOutV3DecodeJson = implicitly[DecodeJson[Output.PyOutV3]]
-  implicit def outputPyOutV4DecodeJson = implicitly[DecodeJson[Output.PyOutV4]]
-  implicit def outputPyErrDecodeJson = implicitly[DecodeJson[Output.PyErr]]
-  implicit def outputErrorDecodeJson = implicitly[DecodeJson[Output.Error]]
-  implicit def outputStatusDecodeJson = implicitly[DecodeJson[Output.Status]]
-  implicit def metaMetaKernelStartRequestDecodeJson = implicitly[DecodeJson[Meta.MetaKernelStartRequest]]
+  implicit lazy val executeResultDecodeJson = DecodeJson.of[Output.ExecuteResult]
+  implicit lazy val metaKernelStartReplyDecodeJson = DecodeJson.of[Meta.MetaKernelStartReply]
 
 
-  implicit def inputExecuteRequestEncodeJson = implicitly[EncodeJson[Input.ExecuteRequest]]
-  implicit def inputCompleteRequestEncodeJson = implicitly[EncodeJson[Input.CompleteRequest]]
-  implicit def inputKernelInfoRequestEncodeJson = implicitly[EncodeJson[Input.KernelInfoRequest]]
-  implicit def inputObjectInfoRequestEncodeJson = implicitly[EncodeJson[Input.ObjectInfoRequest]]
-  implicit def inputConnectRequestEncodeJson = implicitly[EncodeJson[Input.ConnectRequest]]
-  implicit def inputShutdownRequestEncodeJson = implicitly[EncodeJson[Input.ShutdownRequest]]
-  implicit def inputHistoryRequestEncodeJson = implicitly[EncodeJson[Input.HistoryRequest]]
-  implicit def inputInputReplyEncodeJson = implicitly[EncodeJson[Input.InputReply]]
-  implicit def outputExecuteOkReplyEncodeJson = implicitly[EncodeJson[Output.ExecuteOkReply]]
+  implicit lazy val inputExecuteRequestDecodeJson = DecodeJson.of[Input.ExecuteRequest]
+  implicit lazy val inputCompleteRequestDecodeJson = DecodeJson.of[Input.CompleteRequest]
+  implicit lazy val inputKernelInfoRequestDecodeJson = DecodeJson.of[Input.KernelInfoRequest]
+  implicit lazy val inputObjectInfoRequestDecodeJson = DecodeJson.of[Input.ObjectInfoRequest]
+  implicit lazy val inputConnectRequestDecodeJson = DecodeJson.of[Input.ConnectRequest]
+  implicit lazy val inputShutdownRequestDecodeJson = DecodeJson.of[Input.ShutdownRequest]
+  implicit lazy val inputHistoryRequestDecodeJson = DecodeJson.of[Input.HistoryRequest]
+  implicit lazy val inputInputReplyDecodeJson = DecodeJson.of[Input.InputReply]
+  implicit lazy val outputExecuteOkReplyDecodeJson = DecodeJson.of[Output.ExecuteOkReply]
 
-  implicit def outputExecuteErrorReplyEncodeJson = implicitly[EncodeJson[Output.ExecuteErrorReply]]
-  implicit def outputExecuteAbortReplyEncodeJson = implicitly[EncodeJson[Output.ExecuteAbortReply]]
-  implicit def outputObjectInfoNotFoundReplyEncodeJson = implicitly[EncodeJson[Output.ObjectInfoNotFoundReply]]
-  implicit def outputObjectInfoFoundReplyEncodeJson = implicitly[EncodeJson[Output.ObjectInfoFoundReply]]
-  implicit def outputCompleteReplyEncodeJson = implicitly[EncodeJson[Output.CompleteReply]]
-  implicit def outputHistoryReplyEncodeJson = implicitly[EncodeJson[Output.HistoryReply]]
-  implicit def outputConnectReplyEncodeJson = implicitly[EncodeJson[Output.ConnectReply]]
-  implicit def outputKernelInfoReplyEncodeJson = implicitly[EncodeJson[Output.KernelInfoReply]]
-  implicit def outputKernelInfoReplyV4EncodeJson = implicitly[EncodeJson[Output.KernelInfoReplyV4]]
-  implicit def outputShutdownReplyEncodeJson = implicitly[EncodeJson[Output.ShutdownReply]]
-  implicit def outputStreamEncodeJson = implicitly[EncodeJson[Output.Stream]]
-  implicit def outputStreamV4EncodeJson = implicitly[EncodeJson[Output.StreamV4]]
-  implicit def outputDisplayDataEncodeJson = implicitly[EncodeJson[Output.DisplayData]]
-  implicit def outputExecuteInputEncodeJson = implicitly[EncodeJson[Output.ExecuteInput]]
-  implicit def outputPyOutV3EncodeJson = implicitly[EncodeJson[Output.PyOutV3]]
-  implicit def outputPyOutV4EncodeJson = implicitly[EncodeJson[Output.PyOutV4]]
-  implicit def outputExecuteResultEncodeJson = implicitly[EncodeJson[Output.ExecuteResult]]
-  implicit def outputPyErrEncodeJson = implicitly[EncodeJson[Output.PyErr]]
-  implicit def outputErrorEncodeJson = implicitly[EncodeJson[Output.Error]]
-  implicit def outputStatusEncodeJson = implicitly[EncodeJson[Output.Status]]
-  implicit def metaMetaKernelStartRequestEncodeJson = implicitly[EncodeJson[Meta.MetaKernelStartRequest]]
-  implicit def metaMetaKernelStartReplyEncodeJson = implicitly[EncodeJson[Meta.MetaKernelStartReply]]
+  implicit lazy val outputExecuteErrorReplyDecodeJson = DecodeJson.of[Output.ExecuteErrorReply]
+  implicit lazy val outputExecuteAbortReplyDecodeJson = DecodeJson.of[Output.ExecuteAbortReply]
+  implicit lazy val outputObjectInfoNotFoundReplyDecodeJson = DecodeJson.of[Output.ObjectInfoNotFoundReply]
+  implicit lazy val outputObjectInfoFoundReplyDecodeJson = DecodeJson.of[Output.ObjectInfoFoundReply]
+  implicit lazy val outputCompleteReplyDecodeJson = DecodeJson.of[Output.CompleteReply]
+  implicit lazy val outputHistoryReplyDecodeJson = DecodeJson.of[Output.HistoryReply]
+  implicit lazy val outputConnectReplyDecodeJson = DecodeJson.of[Output.ConnectReply]
+  implicit lazy val outputKernelInfoReplyDecodeJson = DecodeJson.of[Output.KernelInfoReply]
+  implicit lazy val outputKernelInfoReplyV4DecodeJson = DecodeJson.of[Output.KernelInfoReplyV4]
+  implicit lazy val outputShutdownReplyDecodeJson = DecodeJson.of[Output.ShutdownReply]
+  implicit lazy val outputStreamDecodeJson = DecodeJson.of[Output.Stream]
+  implicit lazy val outputStreamV4DecodeJson = DecodeJson.of[Output.StreamV4]
+  implicit lazy val outputDisplayDataDecodeJson = DecodeJson.of[Output.DisplayData]
+  implicit lazy val outputExecuteInputDecodeJson = DecodeJson.of[Output.ExecuteInput]
+  implicit lazy val outputPyOutV3DecodeJson = DecodeJson.of[Output.PyOutV3]
+  implicit lazy val outputPyOutV4DecodeJson = DecodeJson.of[Output.PyOutV4]
+  implicit lazy val outputPyErrDecodeJson = DecodeJson.of[Output.PyErr]
+  implicit lazy val outputErrorDecodeJson = DecodeJson.of[Output.Error]
+  implicit lazy val outputStatusDecodeJson = DecodeJson.of[Output.Status]
+  implicit lazy val metaMetaKernelStartRequestDecodeJson = DecodeJson.of[Meta.MetaKernelStartRequest]
 
-  implicit def headerDecodeJson = implicitly[DecodeJson[Header]]
-  implicit def headerEncodeJson = implicitly[EncodeJson[Header]]
-  implicit def headerV4DecodeJson = implicitly[DecodeJson[HeaderV4]]
-  implicit def headerV4EncodeJson = implicitly[EncodeJson[HeaderV4]]
 
-  implicit def connectionDecodeJson = implicitly[DecodeJson[Connection]]
-  implicit def connectionEncodeJson = implicitly[EncodeJson[Connection]]
+  implicit lazy val inputExecuteRequestEncodeJson = EncodeJson.of[Input.ExecuteRequest]
+  implicit lazy val inputCompleteRequestEncodeJson = EncodeJson.of[Input.CompleteRequest]
+  implicit lazy val inputKernelInfoRequestEncodeJson = EncodeJson.of[Input.KernelInfoRequest]
+  implicit lazy val inputObjectInfoRequestEncodeJson = EncodeJson.of[Input.ObjectInfoRequest]
+  implicit lazy val inputConnectRequestEncodeJson = EncodeJson.of[Input.ConnectRequest]
+  implicit lazy val inputShutdownRequestEncodeJson = EncodeJson.of[Input.ShutdownRequest]
+  implicit lazy val inputHistoryRequestEncodeJson = EncodeJson.of[Input.HistoryRequest]
+  implicit lazy val inputInputReplyEncodeJson = EncodeJson.of[Input.InputReply]
+  implicit lazy val outputExecuteOkReplyEncodeJson = EncodeJson.of[Output.ExecuteOkReply]
 
-  implicit val decodeUUID = DecodeJson[NbUUID] { c =>
-    StringDecodeJson.decode(c).flatMap { s =>
-      NbUUID.fromString(s) match {
-        case Some(uuid) =>
-          DecodeResult.ok(uuid)
-        case None =>
-          DecodeResult.fail(s"Invalid UUID: $s", c.history)
-      }
-    }
-  }
+  implicit lazy val outputExecuteErrorReplyEncodeJson = EncodeJson.of[Output.ExecuteErrorReply]
+  implicit lazy val outputExecuteAbortReplyEncodeJson = EncodeJson.of[Output.ExecuteAbortReply]
+  implicit lazy val outputObjectInfoNotFoundReplyEncodeJson = EncodeJson.of[Output.ObjectInfoNotFoundReply]
+  implicit lazy val outputObjectInfoFoundReplyEncodeJson = EncodeJson.of[Output.ObjectInfoFoundReply]
+  implicit lazy val outputCompleteReplyEncodeJson = EncodeJson.of[Output.CompleteReply]
+  implicit lazy val outputHistoryReplyEncodeJson = EncodeJson.of[Output.HistoryReply]
+  implicit lazy val outputConnectReplyEncodeJson = EncodeJson.of[Output.ConnectReply]
+  implicit lazy val outputKernelInfoReplyEncodeJson = EncodeJson.of[Output.KernelInfoReply]
+  implicit lazy val outputKernelInfoReplyV4EncodeJson = EncodeJson.of[Output.KernelInfoReplyV4]
+  implicit lazy val outputShutdownReplyEncodeJson = EncodeJson.of[Output.ShutdownReply]
+  implicit lazy val outputStreamEncodeJson = EncodeJson.of[Output.Stream]
+  implicit lazy val outputStreamV4EncodeJson = EncodeJson.of[Output.StreamV4]
+  implicit lazy val outputDisplayDataEncodeJson = EncodeJson.of[Output.DisplayData]
+  implicit lazy val outputExecuteInputEncodeJson = EncodeJson.of[Output.ExecuteInput]
+  implicit lazy val outputPyOutV3EncodeJson = EncodeJson.of[Output.PyOutV3]
+  implicit lazy val outputPyOutV4EncodeJson = EncodeJson.of[Output.PyOutV4]
+  implicit lazy val outputExecuteResultEncodeJson = EncodeJson.of[Output.ExecuteResult]
+  implicit lazy val outputPyErrEncodeJson = EncodeJson.of[Output.PyErr]
+  implicit lazy val outputErrorEncodeJson = EncodeJson.of[Output.Error]
+  implicit lazy val outputStatusEncodeJson = EncodeJson.of[Output.Status]
+  implicit lazy val metaMetaKernelStartRequestEncodeJson = EncodeJson.of[Meta.MetaKernelStartRequest]
+  implicit lazy val metaMetaKernelStartReplyEncodeJson = EncodeJson.of[Meta.MetaKernelStartReply]
 
-  implicit val encodeUUID = EncodeJson[NbUUID] { uuid =>
-    Json.jString(uuid.toString)
-  }
+  implicit lazy val headerDecodeJson = DecodeJson.of[Header]
+  implicit lazy val headerEncodeJson = EncodeJson.of[Header]
+  implicit lazy val headerV4DecodeJson = DecodeJson.of[HeaderV4]
+  implicit lazy val headerV4EncodeJson = EncodeJson.of[HeaderV4]
+
+  implicit lazy val connectionDecodeJson = DecodeJson.of[Connection]
+  implicit lazy val connectionEncodeJson = EncodeJson.of[Connection]
 
   implicit val encodeExecutionStatusOk: EncodeJson[ExecutionStatus.ok.type] =
     EncodeJson.StringEncodeJson.contramap[ExecutionStatus.ok.type](_.toString)
@@ -191,7 +338,7 @@ object Formats {
 
   implicit val decodeClearOutput: DecodeJson[Output.ClearOutput] =
     DecodeJson[Output.ClearOutput] { c =>
-      c.--\("").focus match {
+      c.--\("wait").focus match {
         case Some(b) => DecodeJson.BooleanDecodeJson.decodeJson(b).map(Output.ClearOutput)
         case None => DecodeResult.fail("ClearOutput", c.history)
       }
@@ -214,25 +361,27 @@ object Formats {
 
 
 object Protocol {
-  val version = (5, 0)
-  val versionStrOpt: Option[String] = Some(s"${version._1}.${version._2}")
+  val versionMajor = 5
+  val versionMinor = 0
+
+  val versionStrOpt: Option[String] = Some(s"$versionMajor.$versionMinor")
 }
 
-sealed trait ExecutionStatus
+sealed trait ExecutionStatus extends Product with Serializable
 object ExecutionStatus {
   case object ok extends ExecutionStatus
   case object error extends ExecutionStatus
   case object abort extends ExecutionStatus
 }
 
-sealed trait HistAccessType
+sealed trait HistAccessType extends Product with Serializable
 object HistAccessType {
   case object range extends HistAccessType
   case object tail extends HistAccessType
   case object search extends HistAccessType
 }
 
-sealed trait ExecutionState
+sealed trait ExecutionState extends Product with Serializable
 object ExecutionState {
   case object busy extends ExecutionState
   case object idle extends ExecutionState
@@ -248,9 +397,9 @@ case class ArgSpec(
 
 
 case class HeaderV4(
-  msg_id: NbUUID,
+  msg_id: String,
   username: String,
-  session: NbUUID,
+  session: String,
   msg_type: String
 ) {
   def toHeader: Header =
@@ -264,9 +413,9 @@ case class HeaderV4(
 }
 
 case class Header(
-  msg_id: NbUUID,
+  msg_id: String,
   username: String,
-  session: NbUUID,
+  session: String,
   msg_type: String,
   version: Option[String]
 )
@@ -282,12 +431,12 @@ case class ParsedMessage[Content](
   import Formats._
 
   private def replyHeader(msgType: String): Header =
-    header.copy(msg_id = NbUUID.randomUUID(), msg_type = msgType)
+    header.copy(msg_id = UUID.randomUUID().toString, msg_type = msgType)
 
   private def replyMsg[ReplyContent: EncodeJson](
     idents: List[Seq[Byte]],
     msgType: String,
-    content: ReplyContent, 
+    content: ReplyContent,
     metadata: Map[String, String]
   ): Message = {
     val m = ParsedMessage(idents, replyHeader(msgType), Some(header), metadata, content).toMessage
@@ -299,8 +448,8 @@ case class ParsedMessage[Content](
   }
 
   def pub[PubContent: EncodeJson](
-    msgType: String, 
-    content: PubContent, 
+    msgType: String,
+    content: PubContent,
     metadata: Map[String, String] = Map.empty
   ): Message = {
     val tpe = content match {
@@ -308,13 +457,13 @@ case class ParsedMessage[Content](
       case content: Output.StreamV4 => content.name // ???
       case _ => msgType
     }
-    
+
     replyMsg(tpe.getBytes("UTF-8") :: Nil, msgType, content, metadata)
   }
 
   def reply[ReplyContent: EncodeJson](
     msgType: String,
-    content: ReplyContent, 
+    content: ReplyContent,
     metadata: Map[String, String] = Map.empty
   ): Message =
     replyMsg(idents, msgType, content, metadata)
@@ -322,56 +471,109 @@ case class ParsedMessage[Content](
   def toMessage(implicit encode: EncodeJson[Content]): Message =
     Message(
       idents,
-      header.asJson.nospaces,
-      parent_header.fold("{}")(_.asJson.nospaces),
-      metadata.asJson.nospaces,
-      content.asJson.nospaces
+      Printer.noSpaces(header.asJson),
+      parent_header.fold("{}")(x => Printer.noSpaces(x.asJson)),
+      Printer.noSpaces(metadata.asJson),
+      Printer.noSpaces(content.asJson)
     )
 }
 
 object ParsedMessage {
   import Formats._
 
-  def decode(message: Message): String \/ ParsedMessage[_] = {
+  def decodeHeader(str: String): String \/ Header =
+    str.decodeEither[Header]
+      .orElse(str.decodeEither[HeaderV4].map(_.toHeader))
+
+  def decodeHeaderOption(str: String): String \/ Option[Header] =
+    str.decodeEither[Option[Header]]
+      .orElse(str.decodeEither[Option[HeaderV4]].map(_.map(_.toHeader)))
+
+  def decodeMetaData(str: String): String \/ Map[String, String] =
+    str.decodeEither[Map[String, String]]
+
+  def decodeInputRequest(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "execute_request"     => Some(str.decodeEither[Input.ExecuteRequest])
+      case "complete_request"    => Some(str.decodeEither[Input.CompleteRequest])
+      case "kernel_info_request" => Some(str.decodeEither[Input.KernelInfoRequest])
+      case "object_info_request" => Some(str.decodeEither[Input.ObjectInfoRequest])
+      case "connect_request"     => Some(str.decodeEither[Input.ConnectRequest])
+      case "shutdown_request"    => Some(str.decodeEither[Input.ShutdownRequest])
+      case "history_request"     => Some(str.decodeEither[Input.HistoryRequest])
+      case "input_reply"         => Some(str.decodeEither[Input.InputReply])
+      case _                     => None
+    }
+
+  def decodeInputOutputMessage(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "comm_open"           => Some(str.decodeEither[InputOutput.CommOpen])
+      case "comm_msg"            => Some(str.decodeEither[InputOutput.CommMsg])
+      case "comm_close"          => Some(str.decodeEither[InputOutput.CommClose])
+      case _                     => None
+    }
+
+  def decodeReply(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "execute_reply"       => Some(
+        str.decodeEither[Output.ExecuteOkReply]
+          .orElse(str.decodeEither[Output.ExecuteErrorReply])
+          .orElse(str.decodeEither[Output.ExecuteAbortReply])
+      )
+      case "object_info_reply"   => Some(
+        str.decodeEither[Output.ObjectInfoNotFoundReply]
+          .orElse(str.decodeEither[Output.ObjectInfoFoundReply])
+      )
+      case "complete_reply"      => Some(str.decodeEither[Output.CompleteReply])
+      case "history_reply"       => Some(str.decodeEither[Output.HistoryReply])
+      case "connect_reply"       => Some(str.decodeEither[Output.ConnectReply])
+      case "kernel_info_reply"   => Some(
+        str.decodeEither[Output.KernelInfoReply]
+          .orElse(str.decodeEither[Output.KernelInfoReplyV4].map(_.toKernelInfoReply))
+      )
+      case "shutdown_reply"      => Some(str.decodeEither[Output.ShutdownReply])
+      case _                     => None
+    }
+  
+  def decodeElem(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "stream"              => Some(
+        str.decodeEither[Output.Stream]
+          .orElse(str.decodeEither[Output.StreamV4].map(_.toStream))
+      )
+      case "display_data"        => Some(str.decodeEither[Output.DisplayData])
+      case "execute_input"       => Some(str.decodeEither[Output.ExecuteInput])
+      case "pyout"               => Some(
+        str.decodeEither[Output.PyOutV3].map(_.toExecuteResult)
+          .orElse(str.decodeEither[Output.PyOutV4].map(_.toExecuteResult))
+      )
+      case "execute_result"      => Some(str.decodeEither[Output.ExecuteResult])
+      case "pyerr"               => Some(str.decodeEither[Output.PyErr].map(_.toError))
+      case "error"               => Some(str.decodeEither[Output.Error])
+      case "status"              => Some(str.decodeEither[Output.Status])
+      case _                     => None
+    }
+
+  def decodeMetaKernelMessage(msgType: String, str: String): Option[String \/ Any] = // FIXME
+    msgType match {
+      case "meta_kernel_start_request" => Some(str.decodeEither[Meta.MetaKernelStartRequest])
+      case "meta_kernel_start_reply"   => Some(str.decodeEither[Meta.MetaKernelStartReply])
+      case _                           => None
+    }
+
+  def decode(message: Message): String \/ ParsedMessage[_] =
     for {
-      _header <- message.header.decodeEither[Header] orElse message.header.decodeEither[HeaderV4].map(_.toHeader)
-      _parentHeader <- message.parentHeader.decodeEither[Option[Header]] orElse message.header.decodeEither[Option[HeaderV4]].map(_.map(_.toHeader))
-      _metaData <- message.metaData.decodeEither[Map[String, String]]
-      _content <- _header.msg_type match {
-        case "execute_request"     => message.content.decodeEither[Input.ExecuteRequest]
-        case "complete_request"    => message.content.decodeEither[Input.CompleteRequest]
-        case "kernel_info_request" => message.content.decodeEither[Input.KernelInfoRequest]
-        case "object_info_request" => message.content.decodeEither[Input.ObjectInfoRequest]
-        case "connect_request"     => message.content.decodeEither[Input.ConnectRequest]
-        case "shutdown_request"    => message.content.decodeEither[Input.ShutdownRequest]
-        case "history_request"     => message.content.decodeEither[Input.HistoryRequest]
-        case "input_reply"         => message.content.decodeEither[Input.InputReply]
-        case "comm_open"           => message.content.decodeEither[InputOutput.CommOpen]
-        case "comm_msg"            => message.content.decodeEither[InputOutput.CommMsg]
-        case "comm_close"          => message.content.decodeEither[InputOutput.CommClose]
-        case "execute_reply"       => message.content.decodeEither[Output.ExecuteOkReply]
-          .orElse(message.content.decodeEither[Output.ExecuteErrorReply])
-          .orElse(message.content.decodeEither[Output.ExecuteAbortReply])
-        case "object_info_reply"   => message.content.decodeEither[Output.ObjectInfoNotFoundReply] orElse message.content.decodeEither[Output.ObjectInfoFoundReply]
-        case "complete_reply"      => message.content.decodeEither[Output.CompleteReply]
-        case "history_reply"       => message.content.decodeEither[Output.HistoryReply]
-        case "connect_reply"       => message.content.decodeEither[Output.ConnectReply]
-        case "kernel_info_reply"   => message.content.decodeEither[Output.KernelInfoReply] orElse message.content.decodeEither[Output.KernelInfoReplyV4].map(_.toKernelInfoReply)
-        case "shutdown_reply"      => message.content.decodeEither[Output.ShutdownReply]
-        case "stream"              => message.content.decodeEither[Output.Stream] orElse message.content.decodeEither[Output.StreamV4].map(_.toStream)
-        case "display_data"        => message.content.decodeEither[Output.DisplayData]
-        case "execute_input"       => message.content.decodeEither[Output.ExecuteInput]
-        case "pyout"      => message.content.decodeEither[Output.PyOutV3].map(_.toExecuteResult) orElse message.content.decodeEither[Output.PyOutV4].map(_.toExecuteResult)
-        case "execute_result"      => message.content.decodeEither[Output.ExecuteResult]
-        case "pyerr"               => message.content.decodeEither[Output.PyErr].map(_.toError)
-        case "error"               => message.content.decodeEither[Output.Error]
-        case "status"              => message.content.decodeEither[Output.Status]
-        case "meta_kernel_start_request"   => message.content.decodeEither[Meta.MetaKernelStartRequest]
-        case "meta_kernel_start_reply"   => message.content.decodeEither[Meta.MetaKernelStartReply]
-        case other                 => -\/(s"Unexpected message type: $other")
-      }
-    } yield ParsedMessage(message.idents, _header, _parentHeader, _metaData, _content)
-  }
+      header0 <- decodeHeader(message.header)
+      parentHeader0 <- decodeHeaderOption(message.parentHeader)
+      metaData0 <- decodeMetaData(message.metaData)
+      content0 <-
+        decodeInputRequest(header0.msg_type, message.content)
+          .orElse(decodeInputOutputMessage(header0.msg_type, message.content))
+          .orElse(decodeReply(header0.msg_type, message.content))
+          .orElse(decodeElem(header0.msg_type, message.content))
+          .orElse(decodeMetaKernelMessage(header0.msg_type, message.content))
+          .getOrElse(\/-(s"Unexpected message type: ${header0.msg_type}"))
+    } yield ParsedMessage(message.idents, header0, parentHeader0, metaData0, content0)
 }
 
 object InputOutput {
@@ -379,18 +581,18 @@ object InputOutput {
   trait Comm
 
   case class CommOpen(
-    comm_id: NbUUID,
+    comm_id: String,
     target_name: String,
     data: Json
   ) extends Comm
 
   case class CommMsg(
-    comm_id: NbUUID,
+    comm_id: String,
     data: Json
   ) extends Comm
 
   case class CommClose(
-    comm_id: NbUUID,
+    comm_id: String,
     data: Json
   ) extends Comm
 
@@ -444,16 +646,29 @@ object Input {
 
 object Output {
 
-  sealed trait ExecuteReply {
+  val True = Witness(true).value
+  type True = Witness.`true`.T
+
+  val False = Witness(false).value
+  type False = Witness.`false`.T
+
+
+  sealed trait ExecuteReply extends Product with Serializable {
     val status: ExecutionStatus
     val execution_count: Int
   }
+
+  // FIXME These aliases seem to be required in 2.10 for codec derivation to be fine.
+  // Don't know why. Probably an issue at the argonaut-shapeless or shapeless itself level.
+  type ExecutionStatusOkType = ExecutionStatus.ok.type
+  type ExecutionStatusErrorType = ExecutionStatus.error.type
+  type ExecutionStatusAbortType = ExecutionStatus.abort.type
 
   case class ExecuteOkReply(
     execution_count: Int,
     payload: List[Map[String, String]] = Nil,
     user_expressions: Map[String, String] = Map.empty,
-    status: ExecutionStatus.ok.type = ExecutionStatus.ok
+    status: ExecutionStatusOkType = ExecutionStatus.ok
   ) extends ExecuteReply
 
   case class ExecuteErrorReply(
@@ -461,22 +676,22 @@ object Output {
     ename: String,
     evalue: String,
     traceback: List[String],
-    status: ExecutionStatus.error.type = ExecutionStatus.error
+    status: ExecutionStatusErrorType = ExecutionStatus.error
   ) extends ExecuteReply
 
   case class ExecuteAbortReply(
     execution_count: Int,
-    status: ExecutionStatus.abort.type = ExecutionStatus.abort
+    status: ExecutionStatusAbortType = ExecutionStatus.abort
   ) extends ExecuteReply
 
-  sealed trait ObjectInfoReply {
+  sealed trait ObjectInfoReply extends Product with Serializable {
     val name: String
     val found: Boolean
   }
 
   case class ObjectInfoNotFoundReply(
     name: String,
-    found: Boolean = false // FIXME Should be enforced by a singleton literal type
+    found: False = False
   ) extends ObjectInfoReply
 
   case class ObjectInfoFoundReply(
@@ -498,7 +713,7 @@ object Output {
     call_def: Option[String] = None,
     call_docstring: Option[String] = None,
     source: Option[String] = None,
-    found: Boolean = true // FIXME Should be enforced by a singleton literal type
+    found: True = True
   ) extends ObjectInfoReply
 
   case class CompleteReply(

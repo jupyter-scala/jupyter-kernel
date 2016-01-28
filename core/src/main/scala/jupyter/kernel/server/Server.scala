@@ -2,27 +2,30 @@ package jupyter
 package kernel
 package server
 
-import java.io.{PrintWriter, File}
+import java.io.File
+import java.nio.file.Files
+import java.util.UUID
 import java.lang.management.ManagementFactory
-import java.net.{InetAddress, ServerSocket}
+import java.net.{ InetAddress, ServerSocket }
 import java.util.concurrent.ExecutorService
-import argonaut._, Argonaut._
-import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.api.NbUUID
-import jupyter.kernel.stream.{StreamKernel, Streams}
-import jupyter.kernel.stream.zmq.ZMQStreams
-import jupyter.kernel.protocol.{Connection, Output, Formats}, Formats._
-import interpreter.InterpreterKernel
-import scalaz._, Scalaz._
 
+import argonaut._, Argonaut._
+
+import com.typesafe.scalalogging.slf4j.LazyLogging
+
+import jupyter.kernel.stream.{ StreamKernel, Streams }
+import jupyter.kernel.stream.zmq.ZMQStreams
+import jupyter.kernel.protocol.{ Connection, Output, Formats }, Formats._
+import jupyter.kernel.interpreter.InterpreterKernel
+
+import scalaz._, Scalaz._
 import scalaz.concurrent.Task
 
 object Server extends LazyLogging {
+
   case class Options(
-    // @ExtraName("f") @ExtraName("conn") @HelpMessage("path to IPython's connection file")
     connectionFile: String = "",
     eraseConnectionFile: Boolean = false,
-    meta: Boolean = false,
     quiet: Boolean = false
   )
 
@@ -33,28 +36,28 @@ object Server extends LazyLogging {
       finally s.close()
     }
 
+    val ip = {
+      val s = InetAddress.getLocalHost.toString
+      val idx = s.lastIndexOf('/')
+      if (idx < 0)
+        s
+      else
+        s.substring(idx + 1)
+    }
+
     val c = Connection(
-      ip = {
-        val s = InetAddress.getLocalHost.toString
-        val idx = s lastIndexOf '/'
-        if (idx < 0)
-          s
-        else
-          s substring idx + 1
-      },
+      ip = ip,
       transport = "tcp",
       stdin_port = randomPort(),
       control_port = randomPort(),
       hb_port = randomPort(),
       shell_port = randomPort(),
       iopub_port = randomPort(),
-      key = NbUUID.randomUUID().toString,
+      key = UUID.randomUUID().toString,
       signature_scheme = Some("hmac-sha256")
     )
 
-    val w = new PrintWriter(connFile)
-    try w.write(c.asJson.spaces2)
-    finally w.close()
+    Files.write(connFile.toPath, c.asJson.spaces2.getBytes) // default charset
 
     c
   }
@@ -100,16 +103,16 @@ object Server extends LazyLogging {
   )(implicit es: ExecutorService): Throwable \/ (File, Task[Unit]) =
     for {
       homeDir <- {
-        Option(System getProperty "user.home").filterNot(_.isEmpty).orElse(sys.env.get("HOME").filterNot(_.isEmpty)) toRightDisjunction {
+        Option(System.getProperty("user.home")).filterNot(_.isEmpty).orElse(sys.env.get("HOME").filterNot(_.isEmpty)).toRightDisjunction {
           new Exception(s"Cannot get user home dir, set one in the HOME environment variable")
         }
       }
       connFile = {
         Some(options.connectionFile).filter(_.nonEmpty).getOrElse(s"jupyter-kernel_${pid()}.json") match {
-          case path if path contains File.separatorChar =>
+          case path if path.contains(File.separatorChar) =>
             new File(path)
           case secure =>
-            (new File(homeDir) /: List(".ipython", s"profile_default", "secure", secure))(new File(_, _))
+            new File(homeDir, s".ipython/profile_default/secure/$secure")
         }
       }
       _ <- {
@@ -118,14 +121,14 @@ object Server extends LazyLogging {
       }
       connection <- {
         if (options.eraseConnectionFile || !connFile.exists()) {
-          logger info s"Creating ipython connection file ${connFile.getAbsolutePath}"
+          logger.info(s"Creating ipython connection file ${connFile.getAbsolutePath}")
           connFile.getParentFile.mkdirs()
           \/-(newConnectionFile(connFile))
         } else {
           val s = io.Source.fromFile(connFile)
           try {
             s.mkString.decodeEither[Connection].leftMap { err =>
-              logger error s"Loading connection file: $err"
+              logger.error(s"Loading connection file: $err")
               new Exception(s"Error while loading connection file: $err")
             }
           } finally s.close() // For Windows: closes the underlying connection file as early as possible (instead
@@ -133,16 +136,15 @@ object Server extends LazyLogging {
                               // e.g. if the kernel is restarted.
         }
       }
-      streams <- \/.fromTryCatchNonFatal(ZMQStreams(connection, isServer = false, identity = Some(kernelId))) .leftMap { err =>
+      streams <- \/.fromTryCatchNonFatal(ZMQStreams(connection, isServer = false, identity = Some(kernelId))).leftMap { err =>
         new Exception(s"Unable to open connection: $err", err)
       }
       _ <- {
-        if (!options.quiet) Console.err println s"Launching kernel"
+        if (!options.quiet) Console.err.println(s"Launching kernel")
         \/-(())
       }
       t <- {
-        if (options.meta) \/.fromTryCatchNonFatal(MetaServer(streams, launch(kernel, _, connection, classLoaderOption), kernelId))
-        else launch(kernel, streams, connection, classLoaderOption)
+        launch(kernel, streams, connection, classLoaderOption)
       }.leftMap(err => new Exception(s"Launching kernel: $err", err))
     } yield (connFile, t)
 }

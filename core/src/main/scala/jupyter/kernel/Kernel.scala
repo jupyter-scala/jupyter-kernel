@@ -4,7 +4,7 @@ package kernel
 import argonaut._, Argonaut.{ EitherDecodeJson => _, _ }
 import protocol._, Formats._
 
-import scalaz.{-\/, \/}
+import scalaz.\/
 
 import scala.language.implicitConversions
 
@@ -17,7 +17,7 @@ case class KernelInfo(
 trait Kernel
 
 
-sealed trait Channel
+sealed trait Channel extends Product with Serializable
 
 object Channel {
   case object   Publish extends Channel
@@ -39,6 +39,7 @@ case class Message(
   metaData: String,
   content: String
 ) {
+
   def protocolUp: Message = {
     def pyoutToExecuteResult =
       for {
@@ -115,51 +116,7 @@ case class Message(
      |}
    """.stripMargin
 
-  def decode: String \/ ParsedMessage[_] = {
-    for {
-      _header <- header.decodeEither[Header] orElse header.decodeEither[HeaderV4].map(_.toHeader)
-      _parentHeader <- parentHeader.decodeEither[Option[Header]] orElse header.decodeEither[Option[HeaderV4]].map(_.map(_.toHeader))
-      _metaData <- metaData.decodeEither[Map[String, String]]
-      _content <- _header.msg_type match {
-        case "connect_request"     => content.decodeEither[Input.ConnectRequest]
-        case "connect_reply"       => content.decodeEither[Output.ConnectReply]
+  def decode: String \/ ParsedMessage[_] =
+    ParsedMessage.decode(this)
 
-        case "kernel_info_request" => content.decodeEither[Input.KernelInfoRequest]
-        case "kernel_info_reply"   => content.decodeEither[Output.KernelInfoReply] orElse content.decodeEither[Output.KernelInfoReplyV4].map(_.toKernelInfoReply)
-
-        case "execute_request"     => content.decodeEither[Input.ExecuteRequest]
-        case "execute_reply"       => content.decodeEither[Output.ExecuteOkReply]
-                                        .orElse(content.decodeEither[Output.ExecuteErrorReply])
-                                        .orElse(content.decodeEither[Output.ExecuteAbortReply])
-        case "execute_result"      => content.decodeEither[Output.ExecuteResult]
-
-        case "complete_request"    => content.decodeEither[Input.CompleteRequest]
-        case "complete_reply"      => content.decodeEither[Output.CompleteReply]
-
-        case "object_info_request" => content.decodeEither[Input.ObjectInfoRequest]
-        case "object_info_reply"   => content.decodeEither[Output.ObjectInfoNotFoundReply] orElse content.decodeEither[Output.ObjectInfoFoundReply]
-
-        case "shutdown_request"    => content.decodeEither[Input.ShutdownRequest]
-        case "shutdown_reply"      => content.decodeEither[Output.ShutdownReply]
-
-        case "history_request"     => content.decodeEither[Input.HistoryRequest]
-        case "history_reply"       => content.decodeEither[Output.HistoryReply]
-
-        case "input_reply"         => content.decodeEither[Input.InputReply]
-        case "comm_open"           => content.decodeEither[InputOutput.CommOpen]
-        case "comm_msg"            => content.decodeEither[InputOutput.CommMsg]
-        case "comm_close"          => content.decodeEither[InputOutput.CommClose]
-        case "stream"              => content.decodeEither[Output.Stream] orElse content.decodeEither[Output.StreamV4].map(_.toStream)
-        case "display_data"        => content.decodeEither[Output.DisplayData]
-        case "execute_input"       => content.decodeEither[Output.ExecuteInput]
-        case "pyout"      => content.decodeEither[Output.PyOutV3].map(_.toExecuteResult) orElse content.decodeEither[Output.PyOutV4].map(_.toExecuteResult)
-        case "pyerr"               => content.decodeEither[Output.PyErr].map(_.toError)
-        case "error"               => content.decodeEither[Output.Error]
-        case "status"              => content.decodeEither[Output.Status]
-        case "meta_kernel_start_request"   => content.decodeEither[Meta.MetaKernelStartRequest]
-        case "meta_kernel_start_reply"   => content.decodeEither[Meta.MetaKernelStartReply]
-        case other                 => -\/(s"Unexpected message type: $other")
-      }
-    } yield ParsedMessage(idents, _header, _parentHeader, _metaData, _content)
-  }
 }

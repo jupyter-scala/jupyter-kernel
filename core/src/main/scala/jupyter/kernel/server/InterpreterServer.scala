@@ -2,29 +2,34 @@ package jupyter
 package kernel
 package server
 
+import java.util.UUID
 import java.util.concurrent.ExecutorService
-import argonaut.{Json, Parse}
+
+import argonaut.{ Json, Parse }
 
 import scala.collection.mutable
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import interpreter.{InterpreterHandler, Interpreter}
+
+import interpreter.{ InterpreterHandler, Interpreter }
 import jupyter.api._
 import jupyter.kernel.stream.Streams
 import protocol._, Formats._, jupyter.kernel.protocol.Output.ConnectReply
 
-import scalaz.concurrent.{Strategy, Task}
+import scalaz.concurrent.{ Strategy, Task }
 import scalaz.stream.async
 
-import scalaz.{\/, -\/, \/-}
+import scalaz.{ -\/, \/, \/- }
 
 object InterpreterServer extends LazyLogging {
 
-  def apply(streams: Streams,
-            connectReply: ConnectReply,
-            interpreter: Interpreter)
-           (implicit
-            es: ExecutorService): Task[Unit] = {
+  def apply(
+    streams: Streams,
+    connectReply: ConnectReply,
+    interpreter: Interpreter
+  )(implicit
+    es: ExecutorService
+  ): Task[Unit] = {
 
     implicit val strategy = Strategy.Executor
 
@@ -33,7 +38,7 @@ object InterpreterServer extends LazyLogging {
     val pubQueue = async.boundedQueue[Message]()
     val stdinQueue = async.boundedQueue[Message]()
 
-    class CommImpl(val id: NbUUID) extends Comm[ParsedMessage[_]] {
+    class CommImpl(val id: String) extends Comm[ParsedMessage[_]] {
       def received(msg: CommChannelMessage) = {
         messageHandlers.foreach(_(msg))
       }
@@ -64,8 +69,8 @@ object InterpreterServer extends LazyLogging {
     }
 
     object CommImpl {
-      val comms = new mutable.HashMap[NbUUID, CommImpl]
-      def apply(id: NbUUID) = comms.getOrElseUpdate(id, new CommImpl(id))
+      val comms = new mutable.HashMap[String, CommImpl]
+      def apply(id: String) = comms.getOrElseUpdate(id, new CommImpl(id))
     }
 
     interpreter.publish(new Publish[ParsedMessage[_]] {
@@ -76,7 +81,7 @@ object InterpreterServer extends LazyLogging {
       def display(source: String, items: (String, String)*)(implicit t: ParsedMessage[_]) =
         pubQueue.enqueueOne(t.pub("display_data", Output.DisplayData(source = source, data = items.toMap, metadata = Map.empty))).run
 
-      def comm(id: NbUUID) = CommImpl(id)
+      def comm(id: String) = CommImpl(id)
     })
 
     val process: (String \/ Message) => Task[Unit] = {
@@ -105,9 +110,9 @@ object InterpreterServer extends LazyLogging {
           ParsedMessage(
             "status".getBytes("UTF-8") :: Nil,
             Header(
-              msg_id = NbUUID.randomUUID(),
+              msg_id = UUID.randomUUID().toString,
               username = "scala_kernel",
-              session = NbUUID.randomUUID(),
+              session = UUID.randomUUID().toString,
               msg_type = "status",
               version = Protocol.versionStrOpt
             ),

@@ -3,9 +3,9 @@ package stream
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 
-import scalaz.{-\/, \/-, \/}
+import scalaz.{ -\/, \/, \/- }
 import scalaz.concurrent.Task
-import scalaz.stream.{Sink, Process}
+import scalaz.stream.{ Sink, Process }
 
 case class Streams(
   requestMessages: Process[Task, String \/ Message],

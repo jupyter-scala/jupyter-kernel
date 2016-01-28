@@ -2,7 +2,8 @@ package jupyter
 package kernel
 package meta
 
-import java.io.{ File, PrintWriter }
+import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.Executors
 
 import stream.zmq.ZMQMetaKernel
@@ -24,61 +25,67 @@ case class JupyterMetaKernel(
   val progName = "jupyter-meta-kernel"
 
   if (setup) {
-    val homeDir = Option(System getProperty "user.home").filterNot(_.isEmpty).orElse(sys.env.get("HOME").filterNot(_.isEmpty)).map(new File(_)) getOrElse {
-      Console.err println "Cannot get user home dir, set one in the HOME environment variable"
-      sys exit 1
+    val homeDir = Option(System.getProperty("user.home")).filterNot(_.isEmpty).orElse(sys.env.get("HOME").filterNot(_.isEmpty)).map(new File(_)) getOrElse {
+      Console.err.println("Cannot get user home dir, set one in the HOME environment variable")
+      sys.exit(1)
     }
 
     val progPath =
-      Option(System getProperty "prog.home").filterNot(_.isEmpty).map(_ + s"/bin/$progName") getOrElse {
-        Console.err println "Cannot get program home dir, it is likely we are not run through pre-packaged binaries."
-        Console.err println "Please edit the generated file below, and ensure the first item of the 'argv' list points to the path of this program."
+      Option(System.getProperty("prog.home")).filter(_.nonEmpty).map(_ + s"/bin/$progName").getOrElse {
+        Console.err.println("Cannot get program home dir, it is likely we are not run through pre-packaged binaries.")
+        Console.err.println("Please edit the generated file below, and ensure the first item of the 'argv' list points to the path of this program.")
         progName
       }
 
-    val setUpFile = (homeDir /: List(".ipython", ".jupyter-meta-path"))(new File(_, _))
-    val w = new PrintWriter(setUpFile)
-    w write progPath
-    w.close()
+    val setUpFile = new File(homeDir, ".ipython/.jupyter-meta-path")
+    Files.write(setUpFile.toPath, progPath.getBytes("UTF-8"))
+
     if (!options.options.quiet)
-      Console.err println s"Set up jupyter-meta in ${setUpFile.getAbsolutePath}"
+      Console.err.println(s"Set up jupyter-meta in ${setUpFile.getAbsolutePath}")
   }
 
   if (metaConnectionFile.isEmpty) {
-    if (setup) {
-      sys exit 0
-    } else {
-      Console.err println s"Error: no meta-connection file specified"
-      sys exit 1
+    if (setup)
+      sys.exit(0)
+    else {
+      Console.err.println(s"Error: no meta-connection file specified")
+      sys.exit(1)
     }
   }
 
-  val _connFile = new File(metaConnectionFile)
+  val connFile0 = new File(metaConnectionFile)
 
-  if (!_connFile.exists()) {
-    Console.err println s"Error: meta-connection file $metaConnectionFile not found"
-    sys exit 1
+  if (!connFile0.exists()) {
+    Console.err.println(s"Error: meta-connection file $metaConnectionFile not found")
+    sys.exit(1)
   }
 
-  if (!_connFile.isFile) {
-    Console.err println s"Error: meta-connection file $metaConnectionFile is not a file"
-    sys exit 1
+  if (!connFile0.isFile) {
+    Console.err.println(s"Error: meta-connection file $metaConnectionFile is not a file")
+    sys.exit(1)
   }
 
   implicit val es = Executors.newCachedThreadPool()
 
+  def nonEmptyOrElse(s: String, default: String): String =
+    if (s.isEmpty)
+      default
+    else
+      s
+
   ServerApp(
     id,
-    ZMQMetaKernel(_connFile, id, keepAlive),
+    ZMQMetaKernel(connFile0, id, keepAlive),
     KernelInfo(
-      Some(name).filter(_.nonEmpty) getOrElse "Kernel",
-      Some(language).filter(_.nonEmpty) getOrElse "scala"
+      nonEmptyOrElse(name, "Kernel"),
+      nonEmptyOrElse(language, "scala")
     ),
     progName,
-    options,
+    isJar = false,
+    options = options,
     extraProgArgs = Seq(
       "--meta-connection-file",
-      _connFile.getAbsolutePath
+      connFile0.getAbsolutePath
     )
   )
 }

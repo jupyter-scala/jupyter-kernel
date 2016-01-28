@@ -5,15 +5,16 @@ package zmq
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import jupyter.kernel.protocol.{HMAC, Connection}
+import jupyter.kernel.protocol.{ HMAC, Connection }
 import org.zeromq.ZMQ
-import org.zeromq.ZMQ.{Poller, PollItem}
+import org.zeromq.ZMQ.{ Poller, PollItem }
 
-import scalaz.{\/-, -\/, \/}
+import scalaz.{ -\/, \/, \/- }
 import scalaz.concurrent.Task
 import scalaz.stream.{ Process, Sink }
 
 object ZMQStreams extends LazyLogging {
+
   private val delimiter = "<IDS|MSG>"
   private val delimiterBytes: Seq[Byte] = delimiter.getBytes("UTF-8")
   private val pollingDelay = 1000L

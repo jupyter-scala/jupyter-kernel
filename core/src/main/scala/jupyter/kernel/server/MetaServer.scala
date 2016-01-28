@@ -6,14 +6,14 @@ import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import jupyter.kernel.stream.Streams
-import stream.zmq.{ZMQStreams, ZMQKernel}
+import stream.zmq.{ ZMQStreams, ZMQKernel }
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 import protocol.{ Meta => MetaProtocol, _ }, Formats._
 
-import scalaz.{-\/, \/-, \/}
-import scalaz.concurrent.{Strategy, Task}
-import scalaz.stream.{async, Process}
+import scalaz.{ -\/, \/, \/- }
+import scalaz.concurrent.{ Strategy, Task }
+import scalaz.stream.{ async, Process }
 
 object MetaServer extends LazyLogging {
   def handler(
@@ -58,6 +58,7 @@ object MetaServer extends LazyLogging {
   )(implicit
     es: ExecutorService
   ): Task[Unit] = {
+
     implicit val strategy = Strategy.Executor
 
     val reqQueue = async.boundedQueue[Message]()
