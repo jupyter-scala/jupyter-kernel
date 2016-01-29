@@ -7,6 +7,7 @@ import java.nio.file.Files
 import java.util.UUID
 import java.io.File
 import java.net.{ ServerSocket, InetAddress }
+import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 
@@ -67,7 +68,14 @@ object ZMQKernel extends LazyLogging {
     Files.write(connectionFile.toPath, connection.asJson.spaces2.getBytes()) // default charset
   }
 
-  def apply(kernelId: String, metaCommand: Seq[String], connectionsDir: File): StreamKernel = {
+  def apply(
+    kernelId: String,
+    metaCommand: Seq[String],
+    connectionsDir: File
+  )(implicit
+    pool: ExecutorService
+  ): StreamKernel = {
+
     def launchKernel(connectionFile: File): Unit = {
       val path = connectionFile.getAbsolutePath
       val cmd = metaCommand.map(_.replaceAllLiterally("{connection_file}", path))

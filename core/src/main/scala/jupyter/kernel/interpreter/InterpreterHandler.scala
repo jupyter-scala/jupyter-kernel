@@ -3,13 +3,14 @@ package kernel
 package interpreter
 
 import java.util.UUID
+import java.util.concurrent.ExecutorService
 
 import jupyter.api._
 import jupyter.kernel.protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
-import scalaz.concurrent.Task
+import scalaz.concurrent.{ Strategy, Task }
 import scalaz.stream.Process
 import scalaz.{ -\/, \/, \/- }
 import scalaz.Scalaz.ToEitherOps
@@ -50,7 +51,16 @@ object InterpreterHandler {
     start ++ f ++ end
   }
 
-  private def publishing(msg: ParsedMessage[_])(f: (Message => Unit) => Seq[Message]): Process[Task, (Channel, Message)] = {
+  private def publishing(
+    msg: ParsedMessage[_]
+  )(
+    f: (Message => Unit) => Seq[Message]
+  )(implicit
+    pool: ExecutorService
+  ): Process[Task, (Channel, Message)] = {
+
+    implicit val strategy = Strategy.Executor
+
     busy(msg) {
       val q = scalaz.stream.async.boundedQueue[Message](1000)
 
@@ -66,6 +76,8 @@ object InterpreterHandler {
   private def execute(
     interpreter: Interpreter,
     msg: ParsedMessage[Input.ExecuteRequest]
+  )(implicit
+    pool: ExecutorService
   ): Process[Task, String \/ (Channel, Message)] = {
 
     val content = msg.content
@@ -232,6 +244,8 @@ object InterpreterHandler {
     connectReply: ConnectReply,
     commHandler: (String, CommChannelMessage) => Unit,
     msg: Message
+  )(implicit
+    pool: ExecutorService
   ): Process[Task, String \/ (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>
