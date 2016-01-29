@@ -41,10 +41,18 @@ object ServerApp extends LazyLogging {
       }
 
     val kernelJsonFile = new File(homeDir, s".ipython/kernels/$kernelId/kernel.json")
+    val launcherFile = new File(homeDir, s".ipython/kernels/$kernelId/launcher.jar")
 
-    if (!options.force && kernelJsonFile.exists()) {
-      Console.err.println(s"Error: $kernelJsonFile already exists, force erasing it with --force")
-      sys.exit(1)
+    if (!options.force) {
+      if (kernelJsonFile.exists()) {
+        Console.err.println(s"Error: $kernelJsonFile already exists, force erasing it with --force")
+        sys.exit(1)
+      }
+
+      if (!options.noCopy && launcherFile.exists()) {
+        Console.err.println(s"Error: $launcherFile already exists, force erasing it with --force")
+        sys.exit(1)
+      }
     }
 
     val parentDir = kernelJsonFile.getParentFile
@@ -57,10 +65,12 @@ object ServerApp extends LazyLogging {
       if (options.noCopy)
         progPath
       else {
-        val dest = new File(homeDir, s".ipython/kernels/$kernelId/launcher.jar")
-        dest.getParentFile.mkdirs()
-        Files.copy(new File(progPath).toPath, dest.toPath)
-        dest.getAbsolutePath
+        if (options.force && launcherFile.exists())
+          launcherFile.delete()
+
+        launcherFile.getParentFile.mkdirs()
+        Files.copy(new File(progPath).toPath, launcherFile.toPath)
+        launcherFile.getAbsolutePath
       }
 
     val launch =
