@@ -10,7 +10,7 @@ import jupyter.kernel.protocol._, Formats._, Output.{ LanguageInfo, ConnectReply
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
 
-import scalaz.concurrent.Task
+import scalaz.concurrent.{ Strategy, Task }
 import scalaz.stream.Process
 import scalaz.{ -\/, \/, \/- }
 import scalaz.Scalaz.ToEitherOps
@@ -58,6 +58,9 @@ object InterpreterHandler {
   )(implicit
     pool: ExecutorService
   ): Process[Task, (Channel, Message)] = {
+
+    implicit val strategy = Strategy.Executor
+
     busy(msg) {
       val q = scalaz.stream.async.boundedQueue[Message](1000)
 
