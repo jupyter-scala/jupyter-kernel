@@ -1,5 +1,7 @@
 package jupyter.kernel.interpreter
 
+import java.util.concurrent.Executors
+
 import jupyter.kernel.{ Message, Channel }, Channel._
 import jupyter.kernel.interpreter.DisplayData.RawData
 import jupyter.kernel.protocol.Output.{ Error => _, _ }
@@ -15,6 +17,8 @@ import argonaut.EncodeJson
 import utest._
 
 object Helpers {
+
+  implicit val es = Executors.newCachedThreadPool()
 
   def echoInterpreter(): Interpreter = new Interpreter {
     def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean, current: Option[ParsedMessage[_]]) =

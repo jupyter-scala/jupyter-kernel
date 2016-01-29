@@ -3,6 +3,7 @@ package kernel
 package interpreter
 
 import java.util.UUID
+import java.util.concurrent.ExecutorService
 
 import jupyter.api._
 import jupyter.kernel.protocol._, Formats._, Output.{ LanguageInfo, ConnectReply }
@@ -50,7 +51,13 @@ object InterpreterHandler {
     start ++ f ++ end
   }
 
-  private def publishing(msg: ParsedMessage[_])(f: (Message => Unit) => Seq[Message]): Process[Task, (Channel, Message)] = {
+  private def publishing(
+    msg: ParsedMessage[_]
+  )(
+    f: (Message => Unit) => Seq[Message]
+  )(implicit
+    pool: ExecutorService
+  ): Process[Task, (Channel, Message)] = {
     busy(msg) {
       val q = scalaz.stream.async.boundedQueue[Message](1000)
 
@@ -66,6 +73,8 @@ object InterpreterHandler {
   private def execute(
     interpreter: Interpreter,
     msg: ParsedMessage[Input.ExecuteRequest]
+  )(implicit
+    pool: ExecutorService
   ): Process[Task, String \/ (Channel, Message)] = {
 
     val content = msg.content
@@ -232,6 +241,8 @@ object InterpreterHandler {
     connectReply: ConnectReply,
     commHandler: (String, CommChannelMessage) => Unit,
     msg: Message
+  )(implicit
+    pool: ExecutorService
   ): Process[Task, String \/ (Channel, Message)] =
     msg.decode match {
       case -\/(err) =>

@@ -20,6 +20,8 @@ object MetaServer extends LazyLogging {
     launchKernel: Streams => Unit,
     kernelId: String,
     baseMsg: Message
+  )(implicit
+    pool: ExecutorService
   ): Process[Task, Message] =
     baseMsg.decode match {
       case -\/(err) =>

@@ -1,6 +1,8 @@
 package jupyter.kernel
 package client
 
+import java.util.concurrent.ExecutorService
+
 import argonaut._, Argonaut._, Shapeless._
 
 import stream.zmq.ZMQKernel
@@ -105,7 +107,7 @@ class KernelSpecs {
   private val iPythonConnectionDir =
     new File(System.getProperty("user.home"), ".ipython/profile_default/security")
 
-  def loadFromKernelSpecs(): Unit = {
+  def loadFromKernelSpecs()(implicit pool: ExecutorService): Unit = {
     var kernels = Map.empty[String, (KernelInfo, Kernel)]
 
     case class Spec(

@@ -2,6 +2,7 @@ package jupyter.kernel
 package stream
 package zmq
 
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
@@ -19,7 +20,13 @@ object ZMQStreams extends LazyLogging {
   private val delimiterBytes: Seq[Byte] = delimiter.getBytes("UTF-8")
   private val pollingDelay = 1000L
 
-  def apply(connection: Connection, isServer: Boolean, identity: Option[String]): Streams = {
+  def apply(
+    connection: Connection,
+    isServer: Boolean,
+    identity: Option[String]
+  )(implicit
+    pool: ExecutorService
+  ): Streams = {
     val ctx = ZMQ.context(1)
 
     val   publish = ctx socket (if (isServer) ZMQ.SUB else ZMQ.PUB)
