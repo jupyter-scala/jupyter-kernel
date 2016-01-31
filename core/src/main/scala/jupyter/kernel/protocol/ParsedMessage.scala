@@ -666,23 +666,51 @@ object Output {
 
   case class ExecuteOkReply(
     execution_count: Int,
-    payload: List[Map[String, String]] = Nil,
-    user_expressions: Map[String, String] = Map.empty,
-    status: ExecutionStatusOkType = ExecutionStatus.ok
+    payload: List[Map[String, String]],
+    user_expressions: Map[String, String],
+    status: ExecutionStatusOkType
   ) extends ExecuteReply
+
+  object ExecuteOkReply {
+    def apply(
+      execution_count: Int,
+      payload: List[Map[String, String]] = Nil,
+      user_expressions: Map[String, String] = Map.empty
+    ): ExecuteOkReply =
+      ExecuteOkReply(
+        execution_count, payload, user_expressions, ExecutionStatus.ok
+      )
+  }
 
   case class ExecuteErrorReply(
     execution_count: Int,
     ename: String,
     evalue: String,
     traceback: List[String],
-    status: ExecutionStatusErrorType = ExecutionStatus.error
+    status: ExecutionStatusErrorType
   ) extends ExecuteReply
+
+  object ExecuteErrorReply {
+    def apply(
+      execution_count: Int,
+      ename: String,
+      evalue: String,
+      traceback: List[String]
+    ): ExecuteErrorReply =
+      ExecuteErrorReply(execution_count, ename, evalue, traceback, ExecutionStatus.error)
+  }
 
   case class ExecuteAbortReply(
     execution_count: Int,
-    status: ExecutionStatusAbortType = ExecutionStatus.abort
+    status: ExecutionStatusAbortType
   ) extends ExecuteReply
+
+  object ExecuteAbortReply {
+    def apply(
+      execution_count: Int
+    ): ExecuteAbortReply =
+      ExecuteAbortReply(execution_count, ExecutionStatus.abort)
+  }
 
   sealed trait ObjectInfoReply extends Product with Serializable {
     val name: String
