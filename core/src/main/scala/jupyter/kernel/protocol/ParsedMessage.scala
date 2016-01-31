@@ -719,30 +719,79 @@ object Output {
 
   case class ObjectInfoNotFoundReply(
     name: String,
-    found: False = False
+    found: False
   ) extends ObjectInfoReply
+
+  object ObjectInfoNotFoundReply {
+    def apply(name: String): ObjectInfoNotFoundReply =
+      ObjectInfoNotFoundReply(name, False)
+  }
 
   case class ObjectInfoFoundReply(
     name: String,
-    ismagic: Option[Boolean] = None,
-    isalias: Option[Boolean] = None,
-    namespace: Option[String] = None,
-    type_name: Option[String] = None,
-    string_form: Option[String] = None,
-    base_class: Option[String] = None,
-    length: Option[String] = None,
-    file: Option[String] = None,
-    definition: Option[String] = None,
-    argspec: Option[ArgSpec] = None,
-    init_definition: Option[String] = None,
-    docstring: Option[String] = None,
-    init_docstring: Option[String] = None,
-    class_docstring: Option[String] = None,
-    call_def: Option[String] = None,
-    call_docstring: Option[String] = None,
-    source: Option[String] = None,
-    found: True = True
+    ismagic: Option[Boolean],
+    isalias: Option[Boolean],
+    namespace: Option[String],
+    type_name: Option[String],
+    string_form: Option[String],
+    base_class: Option[String],
+    length: Option[String],
+    file: Option[String],
+    definition: Option[String],
+    argspec: Option[ArgSpec],
+    init_definition: Option[String],
+    docstring: Option[String],
+    init_docstring: Option[String],
+    class_docstring: Option[String],
+    call_def: Option[String],
+    call_docstring: Option[String],
+    source: Option[String],
+    found: True
   ) extends ObjectInfoReply
+
+  object ObjectInfoFoundReply {
+    def apply(
+      name: String,
+      ismagic: Option[Boolean] = None,
+      isalias: Option[Boolean] = None,
+      namespace: Option[String] = None,
+      type_name: Option[String] = None,
+      string_form: Option[String] = None,
+      base_class: Option[String] = None,
+      length: Option[String] = None,
+      file: Option[String] = None,
+      definition: Option[String] = None,
+      argspec: Option[ArgSpec] = None,
+      init_definition: Option[String] = None,
+      docstring: Option[String] = None,
+      init_docstring: Option[String] = None,
+      class_docstring: Option[String] = None,
+      call_def: Option[String] = None,
+      call_docstring: Option[String] = None,
+      source: Option[String] = None
+    ): ObjectInfoFoundReply =
+      ObjectInfoFoundReply(
+        name,
+        ismagic,
+        isalias,
+        namespace,
+        type_name,
+        string_form,
+        base_class,
+        length,
+        file,
+        definition,
+        argspec,
+        init_definition,
+        docstring,
+        init_docstring,
+        class_docstring,
+        call_def,
+        call_docstring,
+        source,
+        True
+      )
+  }
 
   case class CompleteReply(
     matches: List[String],

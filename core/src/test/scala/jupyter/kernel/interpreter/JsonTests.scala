@@ -30,6 +30,24 @@ object JsonTests extends TestSuite {
         assert(abortStatusOpt == Some("abort"))
       }
     }
+
+    'objectInfo - {
+      'foundField - {
+        val foundReply = ObjectInfoFoundReply("obj")
+        val notFoundReply = ObjectInfoNotFoundReply("obj0")
+
+        def foundFieldOf(json: Json): Option[Boolean] = {
+          case class WithFoundField(found: Boolean)
+          json.asJson.as[WithFoundField].toOption.map(_.found)
+        }
+
+        val foundReplyFieldOpt = foundFieldOf(foundReply.asJson)
+        val notFoundReplyFieldOpt = foundFieldOf(notFoundReply.asJson)
+
+        assert(foundReplyFieldOpt == Some(true))
+        assert(notFoundReplyFieldOpt == Some(false))
+      }
+    }
   }
 
 }
