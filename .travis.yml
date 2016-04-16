@@ -11,3 +11,6 @@ env:
   global:
   - secure: PEpYuctOXRqzaZ2knhj6PmKT732uFXjjDqnzNHk5WOIxIWqO7huI3Ewz90prdr94I2Umz5A6DARgAKFobp4liyom93xU86mPD2Kcszqo7xCD/HtCZ0/XWMWp8we40+K1gfT9tBzP0H4glPLRjfK6LRtc6dvJeRYaEa1kiqdq5gs=
   - secure: c7OeQKpSD9Tf5JYLpbtP32n+S2R5RA/zisl6Y114Aeh/00XM6/7eE7fDtvdg0t07/nI7BguyJK7qxg8/n9k0P4GZoB6KNxdYhnEYzbPHfhycDmaZn9hv0LQ4FazRjFuL5kIvklia5RVWp9Fw8zL7b9SHnjCxdIkR9TZ+q4MaI+4=
+branches:
+  only:
+  - master
