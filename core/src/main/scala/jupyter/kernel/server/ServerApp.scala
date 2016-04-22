@@ -13,11 +13,19 @@ import scala.compat.Platform._
 import scalaz._
 
 case class ServerAppOptions(
-  options: Server.Options = Server.Options(),
+  connectionFile: String = "",
+  eraseConnectionFile: Boolean = false,
+  quiet: Boolean = false,
   exitOnKeyPress: Boolean = false,
   force: Boolean = false,
   noCopy: Boolean = false
-)
+) {
+  lazy val options = Server.Options(
+    connectionFile,
+    eraseConnectionFile,
+    quiet
+  )
+}
 
 object ServerApp extends LazyLogging {
 

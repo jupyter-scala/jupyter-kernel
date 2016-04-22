@@ -9,7 +9,7 @@ lazy val kernel = project.in(file("core"))
   .settings(
     libraryDependencies ++= Seq(
       "com.typesafe" % "config" % "1.2.1",
-      "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "1.0.0-M1",
+      "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "1.0.0-RC1",
       "org.zeromq" % "jeromq" % "0.3.4",
       "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
       "org.scalaz.stream" %% "scalaz-stream" % "0.6a"
@@ -24,8 +24,8 @@ lazy val `kernel-cli` = project.in(file("cli"))
   .settings(packAutoSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.alexarchambault" %% "case-app" % "0.3.0",
-      "ch.qos.logback" % "logback-classic" % "1.0.13"
+      "com.github.alexarchambault" %% "case-app" % "1.0.0-RC2",
+      "ch.qos.logback" % "logback-classic" % "1.1.7"
     )
   )
 
