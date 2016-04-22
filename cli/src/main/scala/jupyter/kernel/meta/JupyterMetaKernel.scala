@@ -11,12 +11,16 @@ import server.{ ServerApp, ServerAppOptions }
 
 import caseapp._
 
-case class JupyterMetaKernel(
-  options: ServerAppOptions,
-  @ExtraName("m") metaConnectionFile: String,
+case class JupyterMetaKernelApp(
+  @Recurse
+    options: ServerAppOptions,
+  @ExtraName("m")
+    metaConnectionFile: String,
   id: String,
-  @ExtraName("N") name: String,
-  @ExtraName("L") language: String,
+  @ExtraName("N")
+    name: String,
+  @ExtraName("L")
+    language: String,
   keepAlive: Boolean,
   setup: Boolean
 ) extends App {
@@ -90,7 +94,5 @@ case class JupyterMetaKernel(
   )
 }
 
-object JupyterMetaKernel extends AppOf[JupyterMetaKernel] {
-  val parser = default
-}
+object JupyterMetaKernel extends AppOf[JupyterMetaKernelApp]
 
