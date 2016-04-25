@@ -83,8 +83,14 @@ object ServerApp extends LazyLogging {
 
     val launch =
       if (isJar)
-        // FIXME What if  java  is not in PATH?
-        List("java", "-jar", progPath0)
+        List(
+          // FIXME What if  java  is not in PATH?
+          "java",
+          // needed by the recent proguarded coursier launchers
+          "-noverify",
+          "-jar",
+          progPath0
+        )
       else
         List(progPath0)
 
