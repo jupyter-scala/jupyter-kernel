@@ -578,7 +578,10 @@ object ParsedMessage {
 
 object InputOutput {
 
-  trait Comm
+  sealed abstract class Comm extends Product with Serializable {
+    def comm_id: String
+    def data: Json
+  }
 
   case class CommOpen(
     comm_id: String,

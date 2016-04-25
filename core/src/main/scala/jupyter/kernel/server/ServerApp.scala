@@ -7,6 +7,8 @@ import java.nio.file.Files
 import java.util.concurrent.Executors
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
+
+import jupyter.kernel.client.KernelSpecs
 import jupyter.kernel.protocol.{ Kernel => KernelDesc }
 
 import scala.compat.Platform._
@@ -18,7 +20,9 @@ case class ServerAppOptions(
   quiet: Boolean = false,
   exitOnKeyPress: Boolean = false,
   force: Boolean = false,
-  noCopy: Boolean = false
+  noCopy: Boolean = false,
+  jupyterPath: String = "",
+  global: Boolean = false
 ) {
   lazy val options = Server.Options(
     connectionFile,
@@ -42,14 +46,28 @@ object ServerApp extends LazyLogging {
     if (options.options.copy(quiet = false) != Server.Options())
       Console.err.println(s"Warning: ignoring kernel launching options when kernel spec option specified")
 
-    val homeDir =
-      Option(System getProperty "user.home").filterNot(_.isEmpty).orElse(sys.env.get("HOME").filterNot(_.isEmpty)) getOrElse {
-        Console.err.println(s"Cannot get user home dir, set one in the HOME environment variable")
-        sys.exit(1)
-      }
+    val kernelsDir =
+      if (options.jupyterPath.isEmpty) {
 
-    val kernelJsonFile = new File(homeDir, s".ipython/kernels/$kernelId/kernel.json")
-    val launcherFile = new File(homeDir, s".ipython/kernels/$kernelId/launcher.jar")
+        // error message suck... can it fail anyway?
+
+        if (options.global)
+          KernelSpecs.systemKernelSpecDirectories.headOption.getOrElse {
+            Console.err.println("No global kernel directory found")
+            sys.exit(1)
+          }
+        else
+          KernelSpecs.userKernelSpecDirectory.getOrElse {
+            Console.err.println("No user kernel directory found")
+            sys.exit(1)
+          }
+      } else
+        new File(options.jupyterPath + "/kernels")
+
+    val kernelDir = new File(kernelsDir, kernelId)
+
+    val kernelJsonFile = new File(kernelDir, "kernel.json")
+    val launcherFile = new File(kernelDir, "launcher.jar")
 
     if (!options.force) {
       if (kernelJsonFile.exists()) {
@@ -64,10 +82,11 @@ object ServerApp extends LazyLogging {
     }
 
     val parentDir = kernelJsonFile.getParentFile
-    if (!parentDir.exists() && !parentDir.mkdirs()) {
-      if (!options.options.quiet)
-        Console.err.println(s"Warning: cannot create directory $parentDir, attempting to generate kernel spec anyway.")
-    }
+
+    if (!parentDir.exists() && !parentDir.mkdirs() && !options.options.quiet)
+      Console.err.println(
+        s"Warning: cannot create directory $parentDir, attempting to generate kernel spec anyway."
+      )
 
     val progPath0 =
       if (options.noCopy)
@@ -83,8 +102,14 @@ object ServerApp extends LazyLogging {
 
     val launch =
       if (isJar)
-        // FIXME What if  java  is not in PATH?
-        List("java", "-jar", progPath0)
+        List(
+          // FIXME What if  java  is not in PATH?
+          "java",
+          // needed by the recent proguarded coursier launchers
+          "-noverify",
+          "-jar",
+          progPath0
+        )
       else
         List(progPath0)
 
@@ -102,23 +127,30 @@ object ServerApp extends LazyLogging {
     Files.write(kernelJsonFile.toPath, connStr.getBytes()) // using the default charset here
 
     for (((w, h), b) <- logos) {
-      val f = new File(homeDir, s".ipython/kernels/$kernelId/logo-${w}x$h.png")
+      val f = new File(kernelDir, s"logo-${w}x$h.png")
       if (options.force || !f.exists())
         Files.write(f.toPath, b)
     }
 
-    if (!options.options.quiet)
+    if (!options.options.quiet) {
+      val kernelId0 =
+        if (kernelId.exists(_.isSpaceChar))
+          "\"" + kernelId + "\""
+        else
+          kernelId
+
       println(
         s"""Generated $kernelJsonFile
            |
-           |Run ipython console with this kernel with
-           |  ipython console --kernel ${if (kernelId.exists(_.isSpaceChar)) "\"" + kernelId + "\"" else kernelId}
+           |Run jupyter console with this kernel with
+           |  jupyter console --kernel $kernelId0
            |
-           |Use this kernel from IPython notebook, running
-           |  ipython notebook
+           |Use this kernel from Jupyter notebook, running
+           |  jupyter notebook
            |and selecting the "${kernelInfo.name}" kernel.
          """.stripMargin
       )
+    }
   }
 
 
@@ -155,7 +187,11 @@ object ServerApp extends LazyLogging {
 
         case \/-((connFile, task)) =>
           if (!options.options.quiet)
-            Console.err.println(s"Connect ipython to this kernel with\n  ipython console --existing ${"\"" + connFile.getAbsolutePath + "\""}")
+            Console.err.println(
+              s"""Connect jupyter to this kernel with
+                 |  jupyter console --existing "${connFile.getAbsolutePath}"
+               """.stripMargin
+            )
 
           if (options.exitOnKeyPress) {
             if (!options.options.quiet)

@@ -11,6 +11,79 @@ import java.io.File
 
 import scala.io.Source
 
+object KernelSpecs {
+
+  private lazy val isWindows =
+    sys.props
+      .get("os.name")
+      .exists(_.startsWith("Windows"))
+
+  private lazy val isOSX =
+    sys.props
+      .get("os.name")
+      .toSeq
+      .contains("Mac OS X")
+
+  private lazy val homeDirOption =
+    sys.props
+      .get("user.home")
+      .filter(_.nonEmpty)
+      .orElse(
+        sys.env
+          .get("HOME")
+          .filter(_.nonEmpty)
+      )
+
+  def userKernelSpecDirectory: Option[File] =
+    if (isWindows)
+      sys.env
+        .get("APPDATA")
+        .map(_ + "/jupyter/kernels")
+        .map(new File(_))
+    else
+      homeDirOption.map { homeDir =>
+        val path =
+          if (isOSX)
+            "Library/Jupyter/kernels"
+          else
+            ".local/share/jupyter/kernels"
+
+        new File(homeDir + "/" + path)
+      }
+
+  def systemKernelSpecDirectories: Seq[File] = {
+
+    val paths =
+      if (isWindows)
+        sys.env
+          .get("PROGRAMDATA")
+          .map(_ + "/jupyter/kernels")
+          .toSeq
+      else
+        Seq(
+          "/usr/share/jupyter/kernels",
+          "/usr/local/share/jupyter/kernels"
+        )
+
+    paths.map(new File(_))
+  }
+
+
+  def kernelSpecDirectories(): Seq[File] = {
+
+    val fromEnv = sys.env
+      .get("JUPYTER_PATH")
+      .toSeq
+      .flatMap(_.split(File.pathSeparator))
+      .map(_ + "/kernels")
+
+    fromEnv.map(new File(_)) ++
+      userKernelSpecDirectory.toSeq ++
+      systemKernelSpecDirectories
+  }
+
+}
+
 class KernelSpecs {
 
   private val lock = new AnyRef
@@ -75,35 +148,6 @@ class KernelSpecs {
       kernels0
     }
 
-  private def isWindows: Boolean =
-    Option(System.getProperty("os.name")).exists(_ startsWith "Windows")
-
-  def kernelSpecDirectories(): Seq[File] = {
-
-    val homeDirOption = Option(System.getProperty("user.home"))
-      .filter(_.nonEmpty)
-      .orElse(sys.env.get("HOME").filter(_.nonEmpty))
-
-    val fromHomeDir = homeDirOption.toSeq.map { homeDir =>
-      new File(homeDir, ".ipython/kernels")
-    }
-
-    val shared =
-      if (isWindows)
-        // IPython 3 doc (http://ipython.org/ipython-doc/3/development/kernels.html#kernelspecs)
-        // says %PROGRAMDATA% instead of APPDATA here
-        Option(System.getenv("APPDATA")).toSeq.map { appData =>
-          new File(appData, "jupyter/kernels")
-        }
-      else
-        Seq(
-          new File("/usr/share/jupyter/kernels"),
-          new File("/usr/local/share/jupyter/kernels")
-        )
-
-    (fromHomeDir ++ shared).filter(_.isDirectory)
-  }
-
   private val iPythonConnectionDir =
     new File(System.getProperty("user.home"), ".ipython/profile_default/security")
 
@@ -117,7 +161,7 @@ class KernelSpecs {
     )
 
     for {
-      dir <- kernelSpecDirectories()
+      dir <- KernelSpecs.kernelSpecDirectories() if dir.isDirectory
       kernelSpecDir <- Option(dir.listFiles()).getOrElse(Array.empty[File]) if kernelSpecDir.isDirectory
       // Priority is given to the first directory of a given kernel id here
       id = kernelSpecDir.getName if !kernels.contains(id)
