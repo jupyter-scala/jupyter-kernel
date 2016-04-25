@@ -1,6 +1,6 @@
 package jupyter.api
 
-sealed trait CommChannelMessage
+sealed abstract class CommChannelMessage extends Product with Serializable
 
 case class CommOpen(target: String, data: String) extends CommChannelMessage
 case class CommMessage(data: String) extends CommChannelMessage

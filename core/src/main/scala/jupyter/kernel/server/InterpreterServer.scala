@@ -3,7 +3,7 @@ package kernel
 package server
 
 import java.util.UUID
-import java.util.concurrent.ExecutorService
+import java.util.concurrent.{ ConcurrentHashMap, ExecutorService }
 
 import argonaut.{ Json, Parse }
 
@@ -38,8 +38,28 @@ object InterpreterServer extends LazyLogging {
     val pubQueue = async.boundedQueue[Message]()
     val stdinQueue = async.boundedQueue[Message]()
 
+    val targetHandlers = new ConcurrentHashMap[String, CommChannelMessage => Unit]
+
     class CommImpl(val id: String) extends Comm[ParsedMessage[_]] {
+
+      def target: Option[String] = ???
+      private var target0 = Option.empty[String]
+
       def received(msg: CommChannelMessage) = {
+
+        msg match {
+          case CommOpen(target, _) =>
+            target0 = Some(target).filter(_.nonEmpty)
+
+            for  {
+              t <- target0
+              h <- Option(targetHandlers.get(t))
+            }
+              messageHandlers = messageHandlers :+ h
+
+          case _ =>
+        }
+
         messageHandlers.foreach(_(msg))
       }
 
@@ -82,6 +102,9 @@ object InterpreterServer extends LazyLogging {
         pubQueue.enqueueOne(t.pub("display_data", Output.DisplayData(source = source, data = items.toMap, metadata = Map.empty))).run
 
       def comm(id: String) = CommImpl(id)
+
+      def commHandler(target: String)(handler: CommChannelMessage => Unit) =
+        targetHandlers.put(target, handler)
     })
 
     val process: (String \/ Message) => Task[Unit] = {
