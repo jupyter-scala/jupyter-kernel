@@ -164,6 +164,28 @@ object InterpreterHandler extends LazyLogging {
     }
   }
 
+  private def isComplete(
+    interpreter: Interpreter,
+    msg: ParsedMessage[ShellRequest.IsComplete]
+  ): Message = {
+
+    val resp = interpreter.isComplete(msg.content.code) match {
+      case None =>
+        ShellReply.IsComplete.Unknown
+      case Some(Interpreter.IsComplete.Complete) =>
+        ShellReply.IsComplete.Complete
+      case Some(Interpreter.IsComplete.Incomplete(indent)) =>
+        ShellReply.IsComplete.Incomplete(indent)
+      case Some(Interpreter.IsComplete.Invalid) =>
+        ShellReply.IsComplete.Invalid
+    }
+
+    msg.reply(
+      "is_complete_reply",
+      resp
+    )
+  }
+
   private def complete(
     interpreter: Interpreter,
     msg: ParsedMessage[ShellRequest.Complete]
@@ -279,6 +301,11 @@ object InterpreterHandler extends LazyLogging {
       case "complete_request" =>
         msg.as[ShellRequest.Complete] { parsedMessage =>
           single(complete(interpreter, parsedMessage))
+        }
+
+      case "is_complete_request" =>
+        msg.as[ShellRequest.IsComplete] { parsedMessage =>
+          single(isComplete(interpreter, parsedMessage))
         }
 
       case "object_info_request" =>

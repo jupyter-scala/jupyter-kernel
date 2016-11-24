@@ -15,6 +15,8 @@ trait Interpreter {
     storeHistory: Boolean,
     current: Option[ParsedMessage[_]]
   ): Interpreter.Result
+  def isComplete(code: String): Option[Interpreter.IsComplete] =
+    None
   def complete(code: String, pos: Int): (Int, Int, Seq[String]) =
     (pos, pos, Nil)
   def executionCount: Int
@@ -28,6 +30,14 @@ trait Interpreter {
 }
 
 object Interpreter {
+
+  sealed abstract class IsComplete extends Product with Serializable
+
+  object IsComplete {
+    case object Complete extends IsComplete
+    case class Incomplete(indent: String) extends IsComplete
+    case object Invalid extends IsComplete
+  }
 
   sealed abstract class Result extends Product with Serializable
   sealed abstract class Success extends Result

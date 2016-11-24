@@ -164,10 +164,24 @@ object ShellReply {
 
   }
 
-  case class IsComplete(
-    status: String, // complete, incomplete, invalid, unknown
-    indent: String // FIXME Only if incomplete
-  ) extends ShellReply
+  sealed abstract class IsComplete extends ShellReply {
+    def status: String
+  }
+
+  object IsComplete {
+    case object Complete extends IsComplete {
+      def status = "complete"
+    }
+    case class Incomplete(indent: String) extends IsComplete {
+      def status = "incomplete"
+    }
+    case object Invalid extends IsComplete {
+      def status = "invalid"
+    }
+    case object Unknown extends IsComplete {
+      def status = "unknown"
+    }
+  }
 
   case class Connect(
     shell_port: Int,

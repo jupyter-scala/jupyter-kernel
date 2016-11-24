@@ -151,6 +151,25 @@ trait ShellReplyEncodeJsons {
   private implicit val shellReplyHistoryJsonCodec =
     JsonSumCodecFor[History](jsonSumDirectCodecFor("history reply"))
 
+  implicit val encodeShellReplyIsComplete: EncodeJson[IsComplete] = {
+
+    case class Resp(status: String, indent: String = "")
+
+    EncodeJson { isComplete =>
+
+      val resp0 = Resp(isComplete.status)
+
+      val resp = isComplete match {
+        case ic @ IsComplete.Incomplete(indent) =>
+          resp0.copy(indent = indent)
+        case _ =>
+          resp0
+      }
+
+      resp.asJson
+    }
+  }
+
   implicit val encodeShellReplyError = EncodeJson.of[Error]
   implicit val encodeShellReplyAbort = EncodeJson.of[Abort]
   implicit val encodeShellReplyExecute = EncodeJson.of[Execute]
@@ -159,7 +178,6 @@ trait ShellReplyEncodeJsons {
   implicit val encodeShellReplyHistory = EncodeJson.of[History]
   implicit val encodeShellReplyHistoryDefault = EncodeJson.of[History.Default]
   implicit val encodeShellReplyHistoryWithOutput = EncodeJson.of[History.WithOutput]
-  implicit val encodeShellReplyIsComplete = EncodeJson.of[IsComplete]
   implicit val encodeShellReplyConnect = EncodeJson.of[Connect]
   implicit val encodeShellReplyCommInfo = EncodeJson.of[CommInfo]
   implicit val encodeShellReplyKernelInfo = EncodeJson.of[KernelInfo]
