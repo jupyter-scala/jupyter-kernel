@@ -15,7 +15,7 @@ trait Interpreter {
     storeHistory: Boolean,
     current: Option[ParsedMessage[_]]
   ): Interpreter.Result
-  def complete(code: String, pos: Int): (Int, Seq[String])
+  def complete(code: String, pos: Int): (Int, Int, Seq[String])
   def executionCount: Int
 
   def languageInfo: ShellReply.KernelInfo.LanguageInfo

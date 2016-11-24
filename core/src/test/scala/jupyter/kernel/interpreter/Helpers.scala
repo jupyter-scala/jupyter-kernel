@@ -29,7 +29,7 @@ object Helpers {
         if (storeHistory) executionCount += 1
         if (line startsWith "error:") Error(line stripPrefix "error:") else Value(Seq(DisplayData.text(line)))
       }
-    def complete(code: String, pos: Int): (Int, Seq[String]) = (pos, Nil)
+    def complete(code: String, pos: Int) = (pos, pos, Nil)
     var executionCount = 0
     val languageInfo = ShellReply.KernelInfo.LanguageInfo("echo", "0.1", "text/x-echo", ".echo", "", Some("x-echo"), None)
   }

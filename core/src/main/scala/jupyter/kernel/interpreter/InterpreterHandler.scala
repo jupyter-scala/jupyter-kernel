@@ -177,14 +177,14 @@ object InterpreterHandler extends LazyLogging {
       else
         msg.content.code.length
 
-    val (i, matches) = interpreter.complete(msg.content.code, pos)
+    val (start, end, matches) = interpreter.complete(msg.content.code, pos)
 
     msg.reply(
       "complete_reply",
       ShellReply.Complete(
         matches.toList,
-        i,
-        pos,
+        start,
+        end,
         Map.empty
       )
     )
