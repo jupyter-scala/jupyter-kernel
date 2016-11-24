@@ -53,6 +53,5 @@ object Interpreter {
 
   case class Error(message: String) extends Failure
 
-  case object Incomplete extends Failure
   case object Cancelled extends Failure
 }

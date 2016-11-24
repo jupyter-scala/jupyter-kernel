@@ -24,7 +24,7 @@ object Helpers {
 
   def echoInterpreter(): Interpreter = new Interpreter {
     def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean, current: Option[ParsedMessage[_]]) =
-      if (line.isEmpty) Incomplete
+      if (line.isEmpty) Error("incomplete")
       else {
         if (storeHistory) executionCount += 1
         if (line startsWith "error:") Error(line stripPrefix "error:") else Value(Seq(DisplayData.text(line)))

@@ -156,9 +156,6 @@ object InterpreterHandler extends LazyLogging {
           case Interpreter.Error(errorMsg) =>
             _error(msg, interpreter.executionCount, errorMsg)
 
-          case Interpreter.Incomplete =>
-            _error(msg, interpreter.executionCount, "incomplete")
-
           case Interpreter.Cancelled =>
             msg.reply("execute_reply", ShellReply.Abort())
         })
