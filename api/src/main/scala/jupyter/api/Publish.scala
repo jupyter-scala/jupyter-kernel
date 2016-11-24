@@ -2,11 +2,9 @@ package jupyter.api
 
 import java.util.UUID
 
-trait Publish {
+trait Publish extends Display {
   def stdout(text: String): Unit
   def stderr(text: String): Unit
-
-  def display(items: (String, String)*): Unit
 
   /** Opens a communication channel server -> client */
   def comm(id: String = UUID.randomUUID().toString): Comm
