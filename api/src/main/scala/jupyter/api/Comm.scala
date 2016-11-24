@@ -11,6 +11,13 @@ trait Comm {
 
   def send(msg: CommChannelMessage): Unit
 
+  final def open(target: String, data: String): Unit =
+    send(CommOpen(target, data))
+  final def message(data: String): Unit =
+    send(CommMessage(data))
+  final def close(data: String): Unit =
+    send(CommClose(data))
+
   def onMessage(f: CommChannelMessage => Unit): Unit
   def onSentMessage(f: CommChannelMessage => Unit): Unit
 }
