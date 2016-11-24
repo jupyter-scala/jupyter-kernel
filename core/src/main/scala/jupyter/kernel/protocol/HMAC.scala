@@ -5,35 +5,38 @@ import javax.crypto.spec.SecretKeySpec
 
 // Adapted from the implementation of IScala
 
-sealed trait HMAC {
+sealed abstract class HMAC {
   def apply(args: String*): String
 }
 
 object HMAC {
 
-  private val empty = new HMAC {
-    def apply(args: String*) = ""
-  }
+  private def instance(f: Seq[String] => String): HMAC =
+    new HMAC {
+      def apply(args: String*) = f(args)
+    }
+
+  private val empty = instance(_ => "")
 
   def apply(key: String, algorithm: Option[String] = None): HMAC =
     if (key.isEmpty)
       empty
-    else
-      new HMAC {
-        private val algorithm0 = "hmac-sha256".replace("-", "")
-        private val mac = Mac.getInstance(algorithm0)
-        private val keySpec = new SecretKeySpec(key.getBytes("UTF-8"), algorithm0)
+    else {
+      val algorithm0 = "hmac-sha256".replace("-", "")
+      val mac = Mac.getInstance(algorithm0)
+      val keySpec = new SecretKeySpec(key.getBytes("UTF-8"), algorithm0)
 
-        mac.init(keySpec)
+      mac.init(keySpec)
 
-        private def hex(bytes: Seq[Byte]) = bytes.map(s => f"$s%02x").mkString
+      def hex(bytes: Seq[Byte]) = bytes.map(s => f"$s%02x").mkString
 
-        def apply(args: String*) =
-          mac.synchronized {
-            for (s <- args)
-              mac.update(s.getBytes("UTF-8"))
+      instance { args =>
+        mac.synchronized {
+          for (s <- args)
+            mac.update(s.getBytes("UTF-8"))
 
-            hex(mac.doFinal())
-          }
+          hex(mac.doFinal())
+        }
       }
+    }
 }

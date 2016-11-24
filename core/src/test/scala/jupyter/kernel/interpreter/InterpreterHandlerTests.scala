@@ -1,13 +1,12 @@
 package jupyter.kernel.interpreter
 
+import argonaut.Json
+
 import jupyter.kernel.Message
-import jupyter.kernel.protocol.Input.{ ExecuteRequest, KernelInfoRequest, ConnectRequest }
-import jupyter.kernel.protocol.Output.{ Error => _, _ }
 import jupyter.kernel.protocol._
-import jupyter.kernel.protocol.Formats.{ inputConnectRequestEncodeJson, inputKernelInfoRequestEncodeJson, inputExecuteRequestEncodeJson }
+import jupyter.kernel.protocol.Formats._
 
 import scalaz.-\/
-
 import utest._
 
 object InterpreterHandlerTests extends TestSuite {
@@ -18,23 +17,23 @@ object InterpreterHandlerTests extends TestSuite {
 
   val tests = TestSuite{
     'malformedHeader{
-      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{", "", "{}", "{}")).runLog.run.map(parse(_))
+      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{", "", "{}", "{}"))
       assertMatch(response) {
-        case IndexedSeq(-\/(_)) =>
+        case -\/(_) =>
       }
     }
 
     'emptyRequest{
       // FIXME Provide a *real* header
-      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{}", "", "{}", "{}")).runLog.run.map(parse(_))
+      val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{}", "", "{}", "{}"))
       assertMatch(response) {
-        case IndexedSeq(-\/(_)) =>
+        case -\/(_) =>
       }
     }
 
     'connectReply{
       session(
-        Req("connect_request", ConnectRequest()) -> Seq(
+        Req("connect_request", ShellRequest.Connect) -> Seq(
           ReqReply("connect_reply", connectReply)
         )
       )
@@ -42,20 +41,20 @@ object InterpreterHandlerTests extends TestSuite {
 
     'kernelInfo{
       session(
-        Req("kernel_info_request", KernelInfoRequest()) -> Seq(
-          ReqReply("kernel_info_reply", KernelInfoReply("5.0", "", "", echoInterpreter().languageInfo, ""))
+        Req("kernel_info_request", ShellRequest.KernelInfo) -> Seq(
+          ReqReply("kernel_info_reply", ShellReply.KernelInfo("5.0", "", "", echoInterpreter().languageInfo, ""))
         )
       )
     }
 
     'execute{
       session(
-        Req("execute_request", ExecuteRequest("meh", silent = false, None, Map.empty, allow_stdin = false)) -> Seq(
-          PubReply(List("execute_input"), "execute_input", ExecuteInput("meh", 1)),
-          PubReply(List("status"), "status", Output.Status(ExecutionState.busy)),
-          PubReply(List("execute_result"), "execute_result", ExecuteResult(1, Map("text/plain" -> "meh"))),
-          ReqReply("execute_reply", ExecuteOkReply(1)),
-          PubReply(List("status"), "status", Output.Status(ExecutionState.idle))
+        Req("execute_request", ShellRequest.Execute("meh", Map.empty, silent = Some(false), None, allow_stdin = Some(false), None)) -> Seq(
+          PubReply(List("execute_input"), "execute_input", Publish.ExecuteInput("meh", 1)),
+          PubReply(List("status"), "status", Publish.Status(Publish.ExecutionState0.Busy)),
+          PubReply(List("execute_result"), "execute_result", Publish.ExecuteResult(1, Map("text/plain" -> Json.jString("meh")), Map.empty)),
+          ReqReply("execute_reply", ShellReply.Execute(1, Map.empty)),
+          PubReply(List("status"), "status", Publish.Status(Publish.ExecutionState0.Idle))
         )
       )
     }

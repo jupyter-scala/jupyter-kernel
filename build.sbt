@@ -2,13 +2,21 @@
 lazy val `kernel-api` = project.in(file("api"))
   .settings(commonSettings)
 
+lazy val `kernel-protocol` = project.in(file("protocol"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.argonaut" %% "argonaut" % "6.1",
+      "com.chuusai" %% "shapeless" % "2.2.5"
+    )
+  )
+
 lazy val kernel = project.in(file("core"))
-  .dependsOn(`kernel-api`)
+  .dependsOn(`kernel-api`, `kernel-protocol`)
   .settings(commonSettings)
   .settings(testSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe" % "config" % "1.2.1",
       "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "1.0.0-RC1",
       "org.zeromq" % "jeromq" % "0.3.4",
       "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
@@ -18,21 +26,10 @@ lazy val kernel = project.in(file("core"))
     publishArtifact in (Test, packageSrc) := true
   )
 
-lazy val `kernel-cli` = project.in(file("cli"))
-  .dependsOn(kernel)
-  .settings(commonSettings)
-  .settings(packAutoSettings)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.github.alexarchambault" %% "case-app" % "1.0.0-RC2",
-      "ch.qos.logback" % "logback-classic" % "1.1.7"
-    )
-  )
-
 lazy val `jupyter-kernel` = project.in(file("."))
   .settings(commonSettings)
   .settings(noPublishSettings)
-  .aggregate(`kernel-api`, kernel, `kernel-cli`)
+  .aggregate(`kernel-api`, `kernel-protocol`, kernel)
 
 
 lazy val commonSettings = Seq(

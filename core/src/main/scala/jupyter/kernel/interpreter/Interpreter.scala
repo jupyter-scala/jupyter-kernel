@@ -2,44 +2,7 @@ package jupyter
 package kernel.interpreter
 
 import jupyter.api.Publish
-import jupyter.kernel.Kernel
-import jupyter.kernel.protocol.Output.LanguageInfo
-import jupyter.kernel.protocol.ParsedMessage
-
-import scala.runtime.ScalaRunTime._
-import scalaz.\/
-
-sealed trait DisplayData extends Product with Serializable {
-  def data: Seq[(String, String)]
-}
-
-object DisplayData {
-
-  case class UserData(data: Seq[(String, String)]) extends DisplayData
-
-  case class RawData(repr: String) extends DisplayData {
-    val data = Seq("text/plain" -> repr)
-  }
-
-  object RawData {
-    private val maxLength = 1000
-
-    def apply(v: Any): RawData = {
-      val repr = stringOf(v)
-      val shortRepr =
-        if (repr.length <= maxLength)
-          repr
-        else
-          repr.take(maxLength) + "…"
-
-      new RawData(shortRepr)
-    }
-  }
-
-  case object EmptyData extends DisplayData {
-    val data = Seq("text/plain" -> "")
-  }
-}
+import jupyter.kernel.protocol.{ ParsedMessage, ShellReply }
 
 trait Interpreter {
   def init(): Unit = {}
@@ -55,7 +18,7 @@ trait Interpreter {
   def complete(code: String, pos: Int): (Int, Seq[String])
   def executionCount: Int
 
-  def languageInfo: LanguageInfo
+  def languageInfo: ShellReply.KernelInfo.LanguageInfo
   def implementation = ("", "")
   def banner = ""
   def resultDisplay = false
@@ -63,19 +26,24 @@ trait Interpreter {
 
 object Interpreter {
 
-  sealed trait Result extends Product with Serializable
-  sealed trait Success extends Result
-  sealed trait Failure extends Result
+  sealed abstract class Result extends Product with Serializable
+  sealed abstract class Success extends Result
+  sealed abstract class Failure extends Result
 
-  case class Value(repr: DisplayData) extends Success
+  case class Value(data: Seq[DisplayData]) extends Success {
+
+    lazy val map: Map[String, String] =
+      data.map {
+        case DisplayData(mime, value) => mime -> value
+      }.toMap
+  }
 
   case object NoValue extends Success
 
   case class Exception(
     name: String,
     msg: String,
-    stackTrace: List[String],
-    exception: Throwable
+    stackTrace: List[String]
   ) extends Failure {
     def traceBack = s"$name: $msg" :: stackTrace.map("    " + _)
   }
@@ -84,8 +52,4 @@ object Interpreter {
 
   case object Incomplete extends Failure
   case object Cancelled extends Failure
-}
-
-trait InterpreterKernel extends Kernel {
-  def apply(): Throwable \/ Interpreter
 }
