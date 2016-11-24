@@ -20,10 +20,12 @@ case class Message(
   def decodeAs[T: DecodeJson]: String \/ ParsedMessage[T] = \/.fromEither(
     for {
       header <- header.decodeEither[Header].right
-      parentHeader <- parentHeader.decodeEither[Option[Header]].right
       metaData <- metaData.decodeEither[Map[String, String]].right
       content <- content.decodeEither[T].right
-    } yield ParsedMessage(idents, header, parentHeader, metaData, content)
+    } yield {
+      val parentHeaderOpt = parentHeader.decodeEither[Header].right.toOption
+      ParsedMessage(idents, header, parentHeaderOpt, metaData, content)
+    }
   )
 
   class AsHelper[T] {
