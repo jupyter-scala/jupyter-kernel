@@ -66,6 +66,7 @@ object ZMQStreams extends LazyLogging {
       override def run() = ZMQ.proxy(heartbeat, heartbeat, null)
     }
 
+    heartBeatThread.setDaemon(true)
     heartBeatThread.start()
 
     def socket(channel: Channel) = channel match {

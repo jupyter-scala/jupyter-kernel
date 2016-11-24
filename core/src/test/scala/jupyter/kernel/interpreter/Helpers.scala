@@ -14,9 +14,13 @@ import scalaz.\/
 import argonaut._, Argonaut._
 import utest._
 
+import scalaz.concurrent.Strategy
+
 object Helpers {
 
-  implicit val es = Executors.newCachedThreadPool()
+  implicit val es = Executors.newCachedThreadPool(
+    Strategy.DefaultDaemonThreadFactory
+  )
 
   def echoInterpreter(): Interpreter = new Interpreter {
     def interpret(line: String, output: Option[((String) => Unit, (String) => Unit)], storeHistory: Boolean, current: Option[ParsedMessage[_]]) =

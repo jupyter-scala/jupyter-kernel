@@ -9,12 +9,14 @@ import jupyter.api._
 import jupyter.kernel.protocol._, Formats._
 
 import argonaut._, Argonaut.{ EitherDecodeJson => _, EitherEncodeJson => _, _ }
+import com.typesafe.scalalogging.LazyLogging
 
+import scala.util.control.NonFatal
 import scalaz.concurrent.{ Strategy, Task }
 import scalaz.stream.Process
-import scalaz.\/
+import scalaz.{ -\/, \/ }
 
-object InterpreterHandler {
+object InterpreterHandler extends LazyLogging {
 
   private def busy(msg: ParsedMessage[_])(f: => Process[Task, (Channel, Message)]): Process[Task, (Channel, Message)] = {
 
@@ -239,7 +241,7 @@ object InterpreterHandler {
     msg: Message
   )(implicit
     pool: ExecutorService
-  ): String \/ Process[Task, (Channel, Message)] = {
+  ): String \/ Process[Task, (Channel, Message)] = try {
 
     msg.msgType.flatMap {
       case "connect_request" =>
@@ -308,5 +310,9 @@ object InterpreterHandler {
           Process.halt
         }
     }
+  } catch {
+    case NonFatal(e) =>
+      logger.error(s"Exception while handling message\n$msg", e)
+      -\/(e.toString)
   }
 }

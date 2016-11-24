@@ -117,7 +117,7 @@ object InterpreterServer extends LazyLogging {
       case \/-(msg) =>
         InterpreterHandler(interpreter, connectReply, comm(_).received(_), msg) match {
           case -\/(err) =>
-            logger.debug(s"Error while handling message: $err")
+            logger.error(s"Error while handling message: $err\n$msg")
             Task.now(())
           case \/-(proc) =>
             proc.evalMap {

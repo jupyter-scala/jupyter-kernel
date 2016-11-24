@@ -12,6 +12,7 @@ import jupyter.kernel.protocol.{ Kernel => KernelDesc }
 
 import scala.compat.Platform._
 import scala.util.{ Failure, Success, Try }
+import scalaz.concurrent.Strategy
 
 case class ServerAppOptions(
   connectionFile: String = "",
@@ -167,22 +168,10 @@ object ServerApp extends LazyLogging {
     if (options.options.connectionFile.isEmpty)
       generateKernelSpec(id, name, language, progPath, isJar, options, extraProgArgs, logos)
     else
-      Try(Server(kernel, id, options.options)(Executors.newCachedThreadPool())) match {
+      Try(Server(kernel, id, options.options)(Executors.newCachedThreadPool(Strategy.DefaultDaemonThreadFactory))) match {
         case Failure(err) =>
-          // Why aren't the causes stack traces returned here?
-          def helper(err: Throwable, count: Int = 0) {
-            logger.error(s"Launching kernel: $err")
-            logger.error(err.getStackTrace.mkString("", EOL, EOL))
-
-            val cause = err.getCause
-            if (cause != null && cause != err)
-              helper(cause, count + 1)
-          }
-
-          helper(err)
-
-          Console.err.println(s"Error while launching kernel: $err")
-          sys.exit(1)
+          logger.error(s"Launching kernel", err)
+          throw new RuntimeException(err)
 
         case Success((connFile, task)) =>
           if (!options.options.quiet)
