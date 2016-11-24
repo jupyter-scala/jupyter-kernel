@@ -2,37 +2,33 @@
 lazy val `kernel-api` = project.in(file("api"))
   .settings(commonSettings)
 
+lazy val `kernel-protocol` = project.in(file("protocol"))
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.argonaut" %% "argonaut" % "6.2-M3"
+    )
+  )
+
 lazy val kernel = project.in(file("core"))
-  .dependsOn(`kernel-api`)
+  .dependsOn(`kernel-api`, `kernel-protocol`)
   .settings(commonSettings)
   .settings(testSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe" % "config" % "1.2.1",
-      "com.github.alexarchambault" %% "argonaut-shapeless_6.1" % "1.0.0-RC1",
+      "com.github.alexarchambault" %% "argonaut-shapeless_6.2" % "1.2.0-M3",
       "org.zeromq" % "jeromq" % "0.3.4",
-      "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
-      "org.scalaz.stream" %% "scalaz-stream" % "0.6a"
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+      "org.scalaz.stream" %% "scalaz-stream" % "0.8.4a"
     ),
     publishArtifact in (Test, packageBin) := true,
     publishArtifact in (Test, packageSrc) := true
   )
 
-lazy val `kernel-cli` = project.in(file("cli"))
-  .dependsOn(kernel)
-  .settings(commonSettings)
-  .settings(packAutoSettings)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.github.alexarchambault" %% "case-app" % "1.0.0-RC2",
-      "ch.qos.logback" % "logback-classic" % "1.1.7"
-    )
-  )
-
 lazy val `jupyter-kernel` = project.in(file("."))
   .settings(commonSettings)
   .settings(noPublishSettings)
-  .aggregate(`kernel-api`, kernel, `kernel-cli`)
+  .aggregate(`kernel-api`, `kernel-protocol`, kernel)
 
 
 lazy val commonSettings = Seq(
@@ -45,13 +41,13 @@ lazy val commonSettings = Seq(
   ),
   libraryDependencies ++= {
     if (scalaBinaryVersion.value == "2.10") Seq(
-      compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
+      compilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
     ) else Nil
   }
 ) ++ publishSettings
 
 lazy val testSettings = Seq(
-  libraryDependencies += "com.lihaoyi" %% "utest" % "0.3.0" % "test",
+  libraryDependencies += "com.lihaoyi" %% "utest" % "0.4.4" % "test",
   testFrameworks += new TestFramework("utest.runner.Framework")
 )
 

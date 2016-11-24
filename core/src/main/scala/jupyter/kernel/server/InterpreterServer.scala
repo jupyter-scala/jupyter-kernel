@@ -3,29 +3,62 @@ package kernel
 package server
 
 import java.util.UUID
-import java.util.concurrent.{ ConcurrentHashMap, ExecutorService }
+import java.util.concurrent.{ConcurrentHashMap, ExecutorService}
 
-import argonaut.{ Json, Parse }
+import argonaut.{Json, Parse}
 
 import scala.collection.mutable
-
-import com.typesafe.scalalogging.slf4j.LazyLogging
-
-import interpreter.{ InterpreterHandler, Interpreter }
+import com.typesafe.scalalogging.LazyLogging
+import interpreter.{Interpreter, InterpreterHandler}
 import jupyter.api._
 import jupyter.kernel.stream.Streams
-import protocol._, Formats._, jupyter.kernel.protocol.Output.ConnectReply
+import jupyter.kernel.protocol.{ Publish => PublishMsg, Comm => ProtocolComm, _ }
+import Formats._
 
-import scalaz.concurrent.{ Strategy, Task }
+import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.async
-
-import scalaz.{ -\/, \/, \/- }
+import scalaz.stream.async.mutable.Queue
+import scalaz.{-\/, \/, \/-}
 
 object InterpreterServer extends LazyLogging {
 
+  private class CommImpl(pubQueue: Queue[Message], id: String, handler: String => Option[CommChannelMessage => Unit]) { self =>
+
+    def received(msg: CommChannelMessage) =
+      messageHandlers.foreach(_(msg))
+
+    var sentMessageHandlers = Seq.empty[CommChannelMessage => Unit]
+    var messageHandlers = Seq.empty[CommChannelMessage => Unit]
+
+    def onMessage(f: CommChannelMessage => Unit) =
+      messageHandlers = messageHandlers :+ f
+
+    def comm(t: ParsedMessage[_]): Comm = new Comm {
+      def id = self.id
+      def send(msg: CommChannelMessage) = {
+        def parse(s: String): Json =
+          Parse.parse(s).left.map(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
+
+        pubQueue.enqueueOne(msg match {
+          case CommOpen(target, data) =>
+            t.publish("comm_open", ProtocolComm.Open(id, target, parse(data)))
+          case CommMessage(data) =>
+            t.publish("comm_msg", ProtocolComm.Message(id, parse(data)))
+          case CommClose(data) =>
+            t.publish("comm_close", ProtocolComm.Close(id, parse(data)))
+        }).unsafePerformSync
+
+        sentMessageHandlers.foreach(_(msg))
+      }
+      def onMessage(f: CommChannelMessage => Unit) = self.onMessage(f)
+      def onSentMessage(f: CommChannelMessage => Unit) =
+        sentMessageHandlers = sentMessageHandlers :+ f
+    }
+  }
+
   def apply(
     streams: Streams,
-    connectReply: ConnectReply,
+    connectReply: ShellReply.Connect,
     interpreter: Interpreter
   )(implicit
     es: ExecutorService
@@ -33,125 +66,103 @@ object InterpreterServer extends LazyLogging {
 
     implicit val strategy = Strategy.Executor
 
-    val reqQueue = async.boundedQueue[Message]()
-    val contQueue = async.boundedQueue[Message]()
-    val pubQueue = async.boundedQueue[Message]()
-    val stdinQueue = async.boundedQueue[Message]()
+    val queues = Channel.channels.map { channel =>
+      channel -> async.boundedQueue[Message](100)
+    }.toMap
+
+    val pubQueue = queues(Channel.Publish)
 
     val targetHandlers = new ConcurrentHashMap[String, CommChannelMessage => Unit]
 
-    class CommImpl(val id: String) extends Comm[ParsedMessage[_]] {
+    val comms = new mutable.HashMap[String, CommImpl]
 
-      def target: Option[String] = ???
-      private var target0 = Option.empty[String]
+    def comm0(id: String) = comms.getOrElseUpdate(
+      id,
+      new CommImpl(pubQueue, id, t => Option(targetHandlers.get(t)))
+    )
 
-      def received(msg: CommChannelMessage) = {
+    interpreter.publish(t =>
+      new Publish {
+        def stdout(text: String) =
+          pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stdout", text = text), ident = "stdout")).unsafePerformSync
+        def stderr(text: String) =
+          pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stderr", text = text), ident = "stderr")).unsafePerformSync
+        def display(items: (String, String)*) =
+          pubQueue.enqueueOne(t.publish("display_data", PublishMsg.DisplayData(items.toMap.mapValues(Json.jString), Map.empty))).unsafePerformSync
 
-        msg match {
-          case CommOpen(target, _) =>
-            target0 = Some(target).filter(_.nonEmpty)
+        def comm(id: String) = comm0(id).comm(t)
 
-            for  {
-              t <- target0
-              h <- Option(targetHandlers.get(t))
-            }
-              messageHandlers = messageHandlers :+ h
+        def commHandler(target: String)(handler: CommChannelMessage => Unit) =
+          targetHandlers.put(target, handler)
+      }
+    )
 
-          case _ =>
-        }
+    def commReceived(id: String, msg: CommChannelMessage) = {
 
-        messageHandlers.foreach(_(msg))
+      msg match {
+        case CommOpen(target, _) =>
+          val target0 = Some(target).filter(_.nonEmpty)
+
+          for  {
+            t <- target0
+            h <- Option(targetHandlers.get(t))
+          }
+            comm0(id).onMessage(h)
+
+        case _ =>
       }
 
-      def send(msg: CommChannelMessage)(implicit t: ParsedMessage[_]) = {
-        def parse(s: String): Json =
-          Parse.parse(s).leftMap(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
-
-        pubQueue.enqueueOne(msg match {
-          case CommOpen(target, data) =>
-            t.pub("comm_open", InputOutput.CommOpen(id, target, parse(data)))
-          case CommMessage(data) =>
-            t.pub("comm_msg", InputOutput.CommMsg(id, parse(data)))
-          case CommClose(data) =>
-            t.pub("comm_close", InputOutput.CommClose(id, parse(data)))
-        }).run
-
-        sentMessageHandlers.foreach(_(msg))
-      }
-
-      var sentMessageHandlers = Seq.empty[CommChannelMessage => Unit]
-      var messageHandlers = Seq.empty[CommChannelMessage => Unit]
-
-      def onMessage(f: CommChannelMessage => Unit) =
-        messageHandlers = messageHandlers :+ f
-      def onSentMessage(f: CommChannelMessage => Unit) =
-        sentMessageHandlers = sentMessageHandlers :+ f
+      comm0(id).received(msg)
     }
-
-    object CommImpl {
-      val comms = new mutable.HashMap[String, CommImpl]
-      def apply(id: String) = comms.getOrElseUpdate(id, new CommImpl(id))
-    }
-
-    interpreter.publish(new Publish[ParsedMessage[_]] {
-      def stdout(text: String)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.pub("stream", Output.Stream(name = "stdout", text = text))).run
-      def stderr(text: String)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.pub("stream", Output.Stream(name = "stderr", text = text))).run
-      def display(source: String, items: (String, String)*)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.pub("display_data", Output.DisplayData(source = source, data = items.toMap, metadata = Map.empty))).run
-
-      def comm(id: String) = CommImpl(id)
-
-      def commHandler(target: String)(handler: CommChannelMessage => Unit) =
-        targetHandlers.put(target, handler)
-    })
 
     val process: (String \/ Message) => Task[Unit] = {
       case -\/(err) =>
-        logger debug s"Error while decoding message: $err"
+        logger.debug(s"Error while decoding message: $err")
         Task.now(())
       case \/-(msg) =>
-        InterpreterHandler(interpreter, connectReply, CommImpl(_).received(_), msg).evalMap {
-          case \/-((Channel.Requests, m)) =>
-            reqQueue enqueueOne m
-          case \/-((Channel.Control, m)) =>
-            contQueue enqueueOne m
-          case \/-((Channel.Publish, m)) =>
-            pubQueue enqueueOne m
-          case \/-((Channel.Input, m)) =>
-            stdinQueue enqueueOne m
+        InterpreterHandler(interpreter, connectReply, commReceived, msg) match {
           case -\/(err) =>
-            logger debug s"Error while handling message: $err"
+            logger.error(s"Error while handling message: $err\n$msg")
             Task.now(())
-        }.run
+          case \/-(proc) =>
+            proc.evalMap {
+              case (channel, m) =>
+                queues(channel).enqueueOne(m)
+            }.run
+        }
     }
 
-    Task.gatherUnordered(Seq(
-      {
-        pubQueue enqueueOne {
-          ParsedMessage(
-            "status".getBytes("UTF-8") :: Nil,
-            Header(
-              msg_id = UUID.randomUUID().toString,
-              username = "scala_kernel",
-              session = UUID.randomUUID().toString,
-              msg_type = "status",
-              version = Protocol.versionStrOpt
-            ),
-            None,
-            Map.empty,
-            Output.Status(ExecutionState.starting)
-          ).toMessage
-        }
-      },
-      reqQueue.dequeue.to(streams.requestSink).run,
-      contQueue.dequeue.to(streams.controlSink).run,
-      pubQueue.dequeue.to(streams.publishSink).run,
-      stdinQueue.dequeue.to(streams.inputSink).run,
-      streams.requestMessages.evalMap(process).run,
-      streams.controlMessages.evalMap(process).run
-    )).map(_ => ())
+    val sendTasks = Channel.channels.map { channel =>
+      queues(channel).dequeue.to(streams.processes(channel)._2).run
+    }
+
+    val sendInitialStatus = pubQueue.enqueueOne(
+      ParsedMessage(
+        List("status".getBytes("UTF-8")),
+        Header(
+          msg_id = UUID.randomUUID().toString,
+          username = "scala_kernel",
+          session = UUID.randomUUID().toString,
+          msg_type = "status",
+          version = Protocol.versionStrOpt
+        ),
+        None,
+        Map.empty,
+        PublishMsg.Status(PublishMsg.ExecutionState0.Starting)
+      ).toMessage
+    )
+
+    val processRequestMessages = streams.processes(Channel.Requests)._1.evalMap(process).run
+    val processControlMessages = streams.processes(Channel.Control)._1.evalMap(process).run
+
+    Task.gatherUnordered(
+      Seq(
+        sendInitialStatus,
+        processRequestMessages,
+        processControlMessages
+      ) ++
+      sendTasks
+    ).map(_ => ())
   }
 
 }

@@ -6,13 +6,13 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.Executors
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
-
-import jupyter.kernel.client.KernelSpecs
+import com.typesafe.scalalogging.LazyLogging
+import jupyter.kernel.interpreter.InterpreterKernel
 import jupyter.kernel.protocol.{ Kernel => KernelDesc }
 
 import scala.compat.Platform._
-import scalaz._
+import scala.util.{ Failure, Success, Try }
+import scalaz.concurrent.Strategy
 
 case class ServerAppOptions(
   connectionFile: String = "",
@@ -34,8 +34,9 @@ case class ServerAppOptions(
 object ServerApp extends LazyLogging {
 
   def generateKernelSpec(
-    kernelId: String,
-    kernelInfo: KernelInfo,
+    id: String,
+    name: String,
+    language: String,
     progPath: String,
     isJar: Boolean,
     options: ServerAppOptions = ServerAppOptions(),
@@ -64,7 +65,7 @@ object ServerApp extends LazyLogging {
       } else
         new File(options.jupyterPath + "/kernels")
 
-    val kernelDir = new File(kernelsDir, kernelId)
+    val kernelDir = new File(kernelsDir, id)
 
     val kernelJsonFile = new File(kernelDir, "kernel.json")
     val launcherFile = new File(kernelDir, "launcher.jar")
@@ -115,12 +116,12 @@ object ServerApp extends LazyLogging {
 
     val conn = KernelDesc(
       launch ++ extraProgArgs ++ List("--quiet", "--connection-file", "{connection_file}"),
-      kernelInfo.name,
-      kernelInfo.language
+      name,
+      language
     )
 
     val connStr = {
-      import argonaut._, Argonaut._, Shapeless._
+      import argonaut._, Argonaut._, ArgonautShapeless._
       conn.asJson.spaces2
     }
 
@@ -134,10 +135,10 @@ object ServerApp extends LazyLogging {
 
     if (!options.options.quiet) {
       val kernelId0 =
-        if (kernelId.exists(_.isSpaceChar))
-          "\"" + kernelId + "\""
+        if (id.exists(_.isSpaceChar))
+          "\"" + id + "\""
         else
-          kernelId
+          id
 
       println(
         s"""Generated $kernelJsonFile
@@ -147,45 +148,32 @@ object ServerApp extends LazyLogging {
            |
            |Use this kernel from Jupyter notebook, running
            |  jupyter notebook
-           |and selecting the "${kernelInfo.name}" kernel.
+           |and selecting the "$name" kernel.
          """.stripMargin
       )
     }
   }
 
-
   def apply(
-    kernelId: String,
-    kernel: Kernel,
-    kernelInfo: KernelInfo,
+    id: String,
+    name: String,
+    language: String,
+    kernel: InterpreterKernel,
     progPath: => String,
     isJar: Boolean,
     options: ServerAppOptions = ServerAppOptions(),
     extraProgArgs: Seq[String] = Nil,
     logos: => Seq[((Int, Int), Array[Byte])] = Nil
-  ): Unit = {
-
+  ): Unit =
     if (options.options.connectionFile.isEmpty)
-      generateKernelSpec(kernelId, kernelInfo, progPath, isJar, options, extraProgArgs, logos)
+      generateKernelSpec(id, name, language, progPath, isJar, options, extraProgArgs, logos)
     else
-      Server(kernel, kernelId, options.options)(Executors.newCachedThreadPool()) match {
-        case -\/(err) =>
-          // Why aren't the causes stack traces returned here?
-          def helper(err: Throwable, count: Int = 0) {
-            logger.error(s"Launching kernel: $err")
-            logger.error(err.getStackTrace.mkString("", EOL, EOL))
+      Try(Server(kernel, id, options.options)(Executors.newCachedThreadPool(Strategy.DefaultDaemonThreadFactory))) match {
+        case Failure(err) =>
+          logger.error(s"Launching kernel", err)
+          throw new RuntimeException(err)
 
-            val cause = err.getCause
-            if (cause != null && cause != err)
-              helper(cause, count + 1)
-          }
-
-          helper(err)
-
-          Console.err.println(s"Error while launching kernel: $err")
-          sys.exit(1)
-
-        case \/-((connFile, task)) =>
+        case Success((connFile, task)) =>
           if (!options.options.quiet)
             Console.err.println(
               s"""Connect jupyter to this kernel with
@@ -199,7 +187,6 @@ object ServerApp extends LazyLogging {
             Console.in.readLine()
             sys.exit(0)
           } else
-            task.run
+            task.unsafePerformSync
       }
-  }
 }
