@@ -22,7 +22,8 @@ object ShellReply {
     ename: String,
     evalue: String,
     traceback: List[String],
-    status: Status.Error // no default value here for the value not to be swallowed by the JSON encoder
+    status: Status.Error, // no default value here for the value not to be swallowed by the JSON encoder
+    execution_count: Int = -1 // required in some context (e.g. errored execute_reply from jupyter console)
   ) extends ShellReply
 
   object Error {
@@ -36,6 +37,20 @@ object ShellReply {
         evalue,
         traceback,
         Status.Error
+      )
+
+    def apply(
+      ename: String,
+      evalue: String,
+      traceback: List[String],
+      execution_count: Int
+    ): Error =
+      Error(
+        ename,
+        evalue,
+        traceback,
+        Status.Error,
+        execution_count
       )
   }
 

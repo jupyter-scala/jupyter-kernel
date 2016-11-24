@@ -99,15 +99,16 @@ object InterpreterHandler extends LazyLogging {
           msg.reply(
             "execute_reply",
             ShellReply.Error(
-              ename = err.ename,
-              evalue = err.evalue,
-              traceback = err.traceback
+              err.ename,
+              err.evalue,
+              err.traceback,
+              executionCount
             )
           )
         }
 
         def _error(msg: ParsedMessage[_], executionCount: Int, err: String): Message =
-          error(msg, executionCount, ShellReply.Error("", "", err.split("\n").toList))
+          error(msg, executionCount, ShellReply.Error("", "", err.split("\n").toList, executionCount))
 
         Seq(interpreter.interpret(
           code,
