@@ -22,6 +22,8 @@ trait Interpreter {
   def implementation = ("", "")
   def banner = ""
   def resultDisplay = false
+
+  def helpLinks: Seq[(String, String)] = Nil
 }
 
 object Interpreter {

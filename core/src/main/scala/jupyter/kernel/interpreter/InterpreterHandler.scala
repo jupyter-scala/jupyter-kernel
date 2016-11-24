@@ -194,6 +194,7 @@ object InterpreterHandler extends LazyLogging {
     implementation: (String, String),
     banner: String,
     languageInfo: ShellReply.KernelInfo.LanguageInfo,
+    helpLinks: Seq[(String, String)],
     msg: ParsedMessage[ShellRequest.KernelInfo.type]
   ): Message =
     msg.reply(
@@ -203,7 +204,14 @@ object InterpreterHandler extends LazyLogging {
         implementation._1,
         implementation._2,
         languageInfo,
-        banner
+        banner,
+        if (helpLinks.isEmpty) None
+        else Some {
+          helpLinks.map {
+            case (text, url) =>
+              ShellReply.KernelInfo.Link(text, url)
+          }.toList
+        }
       )
     )
 
@@ -255,6 +263,7 @@ object InterpreterHandler extends LazyLogging {
             interpreter.implementation,
             interpreter.banner,
             interpreter.languageInfo,
+            interpreter.helpLinks,
             parsedMessage
           )) ++ {
             if (interpreter.initialized)
