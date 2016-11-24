@@ -7,7 +7,7 @@ import jupyter.kernel.protocol.{ ParsedMessage, ShellReply }
 trait Interpreter {
   def init(): Unit = {}
   def initialized: Boolean = true
-  def publish(publish: Publish[ParsedMessage[_]]): Unit = {}
+  def publish(publish: ParsedMessage[_] => Publish): Unit = {}
 
   def interpret(
     line: String,

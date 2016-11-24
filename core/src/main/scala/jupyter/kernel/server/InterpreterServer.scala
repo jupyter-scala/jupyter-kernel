@@ -22,51 +22,38 @@ import scalaz.{-\/, \/, \/-}
 
 object InterpreterServer extends LazyLogging {
 
-  private class CommImpl(pubQueue: Queue[Message], val id: String, handler: String => Option[CommChannelMessage => Unit]) extends Comm[ParsedMessage[_]] {
+  private class CommImpl(pubQueue: Queue[Message], id: String, handler: String => Option[CommChannelMessage => Unit]) { self =>
 
-    private var target0 = Option.empty[String]
-
-    def received(msg: CommChannelMessage) = {
-
-      msg match {
-        case CommOpen(target, _) =>
-          target0 = Some(target).filter(_.nonEmpty)
-
-          for  {
-            t <- target0
-            h <- handler(t)
-          }
-            messageHandlers = messageHandlers :+ h
-
-        case _ =>
-      }
-
+    def received(msg: CommChannelMessage) =
       messageHandlers.foreach(_(msg))
-    }
-
-    def send(msg: CommChannelMessage)(implicit t: ParsedMessage[_]) = {
-      def parse(s: String): Json =
-        Parse.parse(s).left.map(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
-
-      pubQueue.enqueueOne(msg match {
-        case CommOpen(target, data) =>
-          t.publish("comm_open", ProtocolComm.Open(id, target, parse(data)))
-        case CommMessage(data) =>
-          t.publish("comm_msg", ProtocolComm.Message(id, parse(data)))
-        case CommClose(data) =>
-          t.publish("comm_close", ProtocolComm.Close(id, parse(data)))
-      }).unsafePerformSync
-
-      sentMessageHandlers.foreach(_(msg))
-    }
 
     var sentMessageHandlers = Seq.empty[CommChannelMessage => Unit]
     var messageHandlers = Seq.empty[CommChannelMessage => Unit]
 
     def onMessage(f: CommChannelMessage => Unit) =
       messageHandlers = messageHandlers :+ f
-    def onSentMessage(f: CommChannelMessage => Unit) =
-      sentMessageHandlers = sentMessageHandlers :+ f
+
+    def comm(t: ParsedMessage[_]): Comm = new Comm {
+      def id = self.id
+      def send(msg: CommChannelMessage) = {
+        def parse(s: String): Json =
+          Parse.parse(s).left.map(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
+
+        pubQueue.enqueueOne(msg match {
+          case CommOpen(target, data) =>
+            t.publish("comm_open", ProtocolComm.Open(id, target, parse(data)))
+          case CommMessage(data) =>
+            t.publish("comm_msg", ProtocolComm.Message(id, parse(data)))
+          case CommClose(data) =>
+            t.publish("comm_close", ProtocolComm.Close(id, parse(data)))
+        }).unsafePerformSync
+
+        sentMessageHandlers.foreach(_(msg))
+      }
+      def onMessage(f: CommChannelMessage => Unit) = self.onMessage(f)
+      def onSentMessage(f: CommChannelMessage => Unit) =
+        sentMessageHandlers = sentMessageHandlers :+ f
+    }
   }
 
   def apply(
@@ -89,33 +76,51 @@ object InterpreterServer extends LazyLogging {
 
     val comms = new mutable.HashMap[String, CommImpl]
 
-    def comm(id: String) = comms.getOrElseUpdate(
+    def comm0(id: String) = comms.getOrElseUpdate(
       id,
       new CommImpl(pubQueue, id, t => Option(targetHandlers.get(t)))
     )
 
-    val publish = new Publish[ParsedMessage[_]] {
-      def stdout(text: String)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stdout", text = text), ident = "stdout")).unsafePerformSync
-      def stderr(text: String)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stderr", text = text), ident = "stderr")).unsafePerformSync
-      def display(items: (String, String)*)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.publish("display_data", PublishMsg.DisplayData(items.toMap.mapValues(Json.jString), Map.empty))).unsafePerformSync
+    interpreter.publish(t =>
+      new Publish {
+        def stdout(text: String) =
+          pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stdout", text = text), ident = "stdout")).unsafePerformSync
+        def stderr(text: String) =
+          pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stderr", text = text), ident = "stderr")).unsafePerformSync
+        def display(items: (String, String)*) =
+          pubQueue.enqueueOne(t.publish("display_data", PublishMsg.DisplayData(items.toMap.mapValues(Json.jString), Map.empty))).unsafePerformSync
 
-      def comm(id: String) = comm(id)
+        def comm(id: String) = comm0(id).comm(t)
 
-      def commHandler(target: String)(handler: CommChannelMessage => Unit) =
-        targetHandlers.put(target, handler)
+        def commHandler(target: String)(handler: CommChannelMessage => Unit) =
+          targetHandlers.put(target, handler)
+      }
+    )
+
+    def commReceived(id: String, msg: CommChannelMessage) = {
+
+      msg match {
+        case CommOpen(target, _) =>
+          val target0 = Some(target).filter(_.nonEmpty)
+
+          for  {
+            t <- target0
+            h <- Option(targetHandlers.get(t))
+          }
+            comm0(id).onMessage(h)
+
+        case _ =>
+      }
+
+      comm0(id).received(msg)
     }
-
-    interpreter.publish(publish)
 
     val process: (String \/ Message) => Task[Unit] = {
       case -\/(err) =>
         logger.debug(s"Error while decoding message: $err")
         Task.now(())
       case \/-(msg) =>
-        InterpreterHandler(interpreter, connectReply, comm(_).received(_), msg) match {
+        InterpreterHandler(interpreter, connectReply, commReceived, msg) match {
           case -\/(err) =>
             logger.error(s"Error while handling message: $err\n$msg")
             Task.now(())
