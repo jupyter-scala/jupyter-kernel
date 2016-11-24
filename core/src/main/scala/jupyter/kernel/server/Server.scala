@@ -11,7 +11,7 @@ import java.util.concurrent.ExecutorService
 
 import argonaut._
 import Argonaut._
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 import jupyter.kernel.stream.Streams
 import jupyter.kernel.stream.ZMQStreams
 import jupyter.kernel.protocol.{Connection, Formats, ShellReply}
@@ -109,10 +109,10 @@ object Server extends LazyLogging {
         newConnectionFile(connFile)
       } else
         new String(Files.readAllBytes(connFile.toPath), "UTF-8").decodeEither[Connection] match {
-          case -\/(err) =>
+          case Left(err) =>
             logger.error(s"Loading connection file: $err")
             throw new Exception(s"Error while loading connection file: $err")
-          case \/-(c) =>
+          case Right(c) =>
             c
         }
 

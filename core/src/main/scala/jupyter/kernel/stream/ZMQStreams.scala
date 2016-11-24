@@ -4,7 +4,7 @@ package stream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 
 import jupyter.kernel.protocol.{ Channel, Connection, HMAC }
 

@@ -6,7 +6,7 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.Executors
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 import jupyter.kernel.interpreter.InterpreterKernel
 import jupyter.kernel.protocol.{ Kernel => KernelDesc }
 
@@ -120,7 +120,7 @@ object ServerApp extends LazyLogging {
     )
 
     val connStr = {
-      import argonaut._, Argonaut._, Shapeless._
+      import argonaut._, Argonaut._, ArgonautShapeless._
       conn.asJson.spaces2
     }
 
@@ -198,6 +198,6 @@ object ServerApp extends LazyLogging {
             Console.in.readLine()
             sys.exit(0)
           } else
-            task.run
+            task.unsafePerformSync
       }
 }

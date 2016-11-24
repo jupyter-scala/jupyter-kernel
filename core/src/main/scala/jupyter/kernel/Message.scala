@@ -15,15 +15,16 @@ case class Message(
   content: String
 ) {
 
-  def msgType: String \/ String = header.decodeEither[Header].map(_.msg_type)
+  def msgType: String \/ String = \/.fromEither(header.decodeEither[Header].right.map(_.msg_type))
 
-  def decodeAs[T: DecodeJson]: String \/ ParsedMessage[T] =
+  def decodeAs[T: DecodeJson]: String \/ ParsedMessage[T] = \/.fromEither(
     for {
-      header <- header.decodeEither[Header]
-      parentHeader <- parentHeader.decodeEither[Option[Header]]
-      metaData <- metaData.decodeEither[Map[String, String]]
-      content <- content.decodeEither[T]
+      header <- header.decodeEither[Header].right
+      parentHeader <- parentHeader.decodeEither[Option[Header]].right
+      metaData <- metaData.decodeEither[Map[String, String]].right
+      content <- content.decodeEither[T].right
     } yield ParsedMessage(idents, header, parentHeader, metaData, content)
+  )
 
   class AsHelper[T] {
     def apply[U](f: ParsedMessage[T] => U)(implicit decodeJson: DecodeJson[T]): String \/ U =

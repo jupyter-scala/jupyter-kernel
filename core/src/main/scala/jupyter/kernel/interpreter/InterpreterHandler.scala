@@ -55,8 +55,8 @@ object InterpreterHandler {
       val q = scalaz.stream.async.boundedQueue[Message](1000)
 
       val res = Task.unsafeStart {
-        try f(q.enqueueOne(_).run)
-        finally q.close.run
+        try f(q.enqueueOne(_).unsafePerformSync)
+        finally q.close.unsafePerformSync
       }
 
       q.dequeue.map(Channel.Publish.->) ++ Process.eval(res).flatMap(l => Process.emitAll(l.map(Channel.Requests.->)))

@@ -1,6 +1,6 @@
 package jupyter.kernel.protocol
 
-import argonaut._, Argonaut._, Shapeless._
+import argonaut._, Argonaut._, ArgonautShapeless._
 import argonaut.derive.{ JsonSumCodec, JsonSumCodecFor }
 
 import shapeless.Typeable

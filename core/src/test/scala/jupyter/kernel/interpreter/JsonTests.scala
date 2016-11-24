@@ -1,7 +1,7 @@
 package jupyter.kernel.interpreter
 
 import jupyter.kernel.protocol.Formats._
-import argonaut._, Argonaut._, Shapeless._
+import argonaut._, Argonaut._, ArgonautShapeless._
 import jupyter.kernel.protocol.ShellReply
 import utest._
 

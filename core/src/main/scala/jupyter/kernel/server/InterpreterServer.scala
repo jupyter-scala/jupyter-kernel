@@ -8,7 +8,7 @@ import java.util.concurrent.{ConcurrentHashMap, ExecutorService}
 import argonaut.{Json, Parse}
 
 import scala.collection.mutable
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 import interpreter.{Interpreter, InterpreterHandler}
 import jupyter.api._
 import jupyter.kernel.stream.Streams
@@ -46,7 +46,7 @@ object InterpreterServer extends LazyLogging {
 
     def send(msg: CommChannelMessage)(implicit t: ParsedMessage[_]) = {
       def parse(s: String): Json =
-        Parse.parse(s).leftMap(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
+        Parse.parse(s).left.map(err => throw new IllegalArgumentException(s"Malformed JSON: $s ($err)")).merge
 
       pubQueue.enqueueOne(msg match {
         case CommOpen(target, data) =>
@@ -55,7 +55,7 @@ object InterpreterServer extends LazyLogging {
           t.publish("comm_msg", ProtocolComm.Message(id, parse(data)))
         case CommClose(data) =>
           t.publish("comm_close", ProtocolComm.Close(id, parse(data)))
-      }).run
+      }).unsafePerformSync
 
       sentMessageHandlers.foreach(_(msg))
     }
@@ -80,7 +80,7 @@ object InterpreterServer extends LazyLogging {
     implicit val strategy = Strategy.Executor
 
     val queues = Channel.channels.map { channel =>
-      channel -> async.boundedQueue[Message]()
+      channel -> async.boundedQueue[Message](100)
     }.toMap
 
     val pubQueue = queues(Channel.Publish)
@@ -96,11 +96,11 @@ object InterpreterServer extends LazyLogging {
 
     val publish = new Publish[ParsedMessage[_]] {
       def stdout(text: String)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stdout", text = text), ident = "stdout")).run
+        pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stdout", text = text), ident = "stdout")).unsafePerformSync
       def stderr(text: String)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stderr", text = text), ident = "stderr")).run
+        pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stderr", text = text), ident = "stderr")).unsafePerformSync
       def display(items: (String, String)*)(implicit t: ParsedMessage[_]) =
-        pubQueue.enqueueOne(t.publish("display_data", PublishMsg.DisplayData(items.toMap.mapValues(Json.jString), Map.empty))).run
+        pubQueue.enqueueOne(t.publish("display_data", PublishMsg.DisplayData(items.toMap.mapValues(Json.jString), Map.empty))).unsafePerformSync
 
       def comm(id: String) = comm(id)
 

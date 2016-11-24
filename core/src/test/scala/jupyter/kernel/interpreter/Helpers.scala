@@ -96,7 +96,7 @@ object Helpers {
     for (((req, replies), idx) <- msgs.zipWithIndex) {
       val (msg, msgHdr) = req(idents, userName, sessionId, version)
       val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr, version)).map { case (c, m) => c -> m.eraseMsgId.right }
-      val response = InterpreterHandler(intp, connectReply, (_, _) => (), msg).map(_.runLog.run.map { case (c, m) => c -> m.decodeAs[Json].map(_.eraseMsgId) })
+      val response = InterpreterHandler(intp, connectReply, (_, _) => (), msg).map(_.runLog.unsafePerformSync.map { case (c, m) => c -> m.decodeAs[Json].map(_.eraseMsgId) })
       assert(response.isRight)
       assertCmp(response.toOption.get, expected)
     }

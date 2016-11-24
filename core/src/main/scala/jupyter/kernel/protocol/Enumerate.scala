@@ -1,7 +1,6 @@
 package jupyter.kernel.protocol
 
-import shapeless.{ :+:, ::, CNil, Coproduct, Generic, HList, HNil, Inl, Inr }
-import shapeless.compat.Strict
+import shapeless.{ :+:, ::, CNil, Coproduct, Generic, HList, HNil, Inl, Inr, Strict }
 
 sealed abstract class Enumerate[T] {
   def apply(): Seq[T]

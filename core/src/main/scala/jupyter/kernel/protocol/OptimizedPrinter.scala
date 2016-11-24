@@ -131,7 +131,6 @@ object OptimizedPrinter {
         , bool => builder.append(if (bool) trueText else falseText)
         , n => n match {
           case JsonLong(x) => builder append x.toString
-          case JsonDouble(x) => builder append x.toString
           case JsonDecimal(x) => builder append x
           case JsonBigDecimal(x) => builder append x.toString
         }
