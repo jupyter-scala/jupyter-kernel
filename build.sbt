@@ -32,7 +32,7 @@ lazy val `jupyter-kernel` = project.in(file("."))
 
 
 lazy val commonSettings = Seq(
-  organization := "org.jupyter-scala",
+  organization := "com.github.alexarchambault.jupyter",
   scalaVersion := "2.11.8",
   scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature"),
   resolvers ++= Seq(
