@@ -1,11 +1,17 @@
 language: scala
 scala:
+- 2.12.0
 - 2.11.8
 jdk:
 - oraclejdk8
 script: sbt ++${TRAVIS_SCALA_VERSION} test $(if [[ "${TRAVIS_PULL_REQUEST}" ==
   "false" && "${TRAVIS_BRANCH}" == "master" ]]; then echo "publish"; fi)
 sudo: false
+cache:
+  directories:
+  - $HOME/.coursier
+  - $HOME/.ivy2/cache
+  - $HOME/.sbt
 env:
   global:
   - secure: PEpYuctOXRqzaZ2knhj6PmKT732uFXjjDqnzNHk5WOIxIWqO7huI3Ewz90prdr94I2Umz5A6DARgAKFobp4liyom93xU86mPD2Kcszqo7xCD/HtCZ0/XWMWp8we40+K1gfT9tBzP0H4glPLRjfK6LRtc6dvJeRYaEa1kiqdq5gs=
