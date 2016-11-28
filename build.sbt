@@ -1,4 +1,11 @@
 
+val argonautVersion = "6.2-RC2"
+val argonautShapelessVersion = "1.2.0-M4"
+val fs2Version = "0.8.6a"
+val jeromqVersion = "0.3.6"
+val scalaLoggingVersion = "3.5.0"
+val utestVersion = "0.4.4"
+
 lazy val `kernel-api` = project.in(file("api"))
   .settings(commonSettings)
 
@@ -6,7 +13,7 @@ lazy val `kernel-protocol` = project.in(file("protocol"))
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "io.argonaut" %% "argonaut" % "6.2-M3"
+      "io.argonaut" %% "argonaut" % argonautVersion
     )
   )
 
@@ -16,10 +23,10 @@ lazy val kernel = project.in(file("core"))
   .settings(testSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.alexarchambault" %% "argonaut-shapeless_6.2" % "1.2.0-M3",
-      "org.zeromq" % "jeromq" % "0.3.4",
-      "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
-      "org.scalaz.stream" %% "scalaz-stream" % "0.8.4a"
+      "com.github.alexarchambault" %% "argonaut-shapeless_6.2" % argonautShapelessVersion,
+      "org.zeromq" % "jeromq" % jeromqVersion,
+      "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingVersion,
+      "org.scalaz.stream" %% "scalaz-stream" % fs2Version
     ),
     publishArtifact in (Test, packageBin) := true,
     publishArtifact in (Test, packageSrc) := true
@@ -47,7 +54,7 @@ lazy val commonSettings = Seq(
 ) ++ publishSettings
 
 lazy val testSettings = Seq(
-  libraryDependencies += "com.lihaoyi" %% "utest" % "0.4.4" % "test",
+  libraryDependencies += "com.lihaoyi" %% "utest" % utestVersion % "test",
   testFrameworks += new TestFramework("utest.runner.Framework")
 )
 
