@@ -1,6 +1,6 @@
 package jupyter.kernel.protocol
 
-case class Connection(
+final case class Connection(
   ip: String,
   transport: String,
   stdin_port: Int,

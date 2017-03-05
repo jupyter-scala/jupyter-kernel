@@ -1,6 +1,6 @@
 package jupyter.kernel.interpreter
 
-case class DisplayData(mimeType: String, data: String)
+final case class DisplayData(mimeType: String, data: String)
 
 object DisplayData {
 

@@ -4,7 +4,7 @@ sealed abstract class ShellRequest extends Product with Serializable
 
 object ShellRequest {
 
-  case class Execute(
+  final case class Execute(
     code: String,
     user_expressions: Map[String, String],
     silent: Option[Boolean] = None,
@@ -13,13 +13,13 @@ object ShellRequest {
     stop_on_error: Option[Boolean] = None
   ) extends ShellRequest
 
-  case class Inspect(
+  final case class Inspect(
     code: String,
     cursor_pos: Int,
     detail_level: Int // 0 or 1 - enforce with refined, or a custom ADT?
   ) extends ShellRequest
 
-  case class Complete(
+  final case class Complete(
     code: String,
     cursor_pos: Int
   ) extends ShellRequest
@@ -44,7 +44,7 @@ object ShellRequest {
       type Search = Search.type
     }
 
-    case class Range(
+    final case class Range(
       output: Boolean,
       raw: Boolean,
       session: Int, // range specific
@@ -71,7 +71,7 @@ object ShellRequest {
         )
     }
 
-    case class Tail(
+    final case class Tail(
       output: Boolean,
       raw: Boolean,
       n: Int, // tail and search specific
@@ -92,7 +92,7 @@ object ShellRequest {
         )
     }
 
-    case class Search(
+    final case class Search(
       output: Boolean,
       raw: Boolean,
       n: Int, // search specific
@@ -135,19 +135,19 @@ object ShellRequest {
 
   }
 
-  case class IsComplete(
+  final case class IsComplete(
     code: String
   ) extends ShellRequest
 
   case object Connect extends ShellRequest
 
-  case class CommInfo(
+  final case class CommInfo(
     target_name: Option[String] = None
   ) extends ShellRequest
 
   case object KernelInfo extends ShellRequest
 
-  case class Shutdown(
+  final case class Shutdown(
     restart: Boolean
   ) extends ShellRequest
 

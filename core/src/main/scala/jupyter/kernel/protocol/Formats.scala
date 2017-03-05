@@ -153,7 +153,7 @@ trait ShellReplyEncodeJsons {
 
   implicit val encodeShellReplyIsComplete: EncodeJson[IsComplete] = {
 
-    case class Resp(status: String, indent: String = "")
+    final case class Resp(status: String, indent: String = "")
 
     EncodeJson { isComplete =>
 

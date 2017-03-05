@@ -14,7 +14,7 @@ import scala.compat.Platform._
 import scala.util.{ Failure, Success, Try }
 import scalaz.concurrent.Strategy
 
-case class ServerAppOptions(
+final case class ServerAppOptions(
   connectionFile: String = "",
   eraseConnectionFile: Boolean = false,
   quiet: Boolean = false,

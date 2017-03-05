@@ -59,7 +59,7 @@ object Helpers {
     }
   }
 
-  case class Req[T: EncodeJson](msgType: String, t: T) {
+  final case class Req[T: EncodeJson](msgType: String, t: T) {
     def apply(idents: List[Seq[Byte]], userName: String, sessionId: String, version: Option[String]): (Message, Header) = {
       val msg = ParsedMessage(
         idents, Header(UUID.randomUUID().toString, userName, sessionId, msgType, version), None, Map.empty,
@@ -73,11 +73,11 @@ object Helpers {
   sealed abstract class Reply extends Product with Serializable {
     def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]): (Channel, ParsedMessage[Json])
   }
-  case class ReqReply[T: EncodeJson](msgType: String, t: T) extends Reply {
+  final case class ReqReply[T: EncodeJson](msgType: String, t: T) extends Reply {
     def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]) =
       Channel.Requests -> ParsedMessage(defaultIdents, Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t.asJson)
   }
-  case class PubReply[T: EncodeJson](idents: List[String], msgType: String, t: T) extends Reply {
+  final case class PubReply[T: EncodeJson](idents: List[String], msgType: String, t: T) extends Reply {
     def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]) =
       Channel.Publish -> ParsedMessage(idents.map(_.getBytes("UTF-8").toSeq), Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t.asJson)
   }

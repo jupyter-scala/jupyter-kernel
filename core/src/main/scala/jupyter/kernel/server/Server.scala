@@ -23,7 +23,7 @@ import scalaz.concurrent.Task
 
 object Server extends LazyLogging {
 
-  case class Options(
+  final case class Options(
     connectionFile: String = "",
     eraseConnectionFile: Boolean = false,
     quiet: Boolean = false

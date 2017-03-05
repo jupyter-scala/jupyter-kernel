@@ -7,7 +7,7 @@ import protocol.Formats.decodeHeader
 
 import scalaz.\/
 
-case class Message(
+final case class Message(
   idents: List[Seq[Byte]],
   header: String,
   parentHeader: String,

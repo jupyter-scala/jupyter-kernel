@@ -18,7 +18,7 @@ object ShellReply {
   }
 
 
-  case class Error(
+  final case class Error(
     ename: String,
     evalue: String,
     traceback: List[String],
@@ -54,7 +54,7 @@ object ShellReply {
       )
   }
 
-  case class Abort(
+  final case class Abort(
     status: Status.Abort // no default value here for the value not to be swallowed by the JSON encoder
   ) extends ShellReply
 
@@ -65,7 +65,7 @@ object ShellReply {
 
 
   // payloads not supported here
-  case class Execute(
+  final case class Execute(
     execution_count: Int,
     user_expressions: Map[String, String],
     status: Status.Ok // no default value here for the value not to be swallowed by the JSON encoder
@@ -83,7 +83,7 @@ object ShellReply {
       )
   }
 
-  case class Inspect(
+  final case class Inspect(
     found: Boolean,
     data: Map[String, String],
     metadata: Map[String, String],
@@ -104,7 +104,7 @@ object ShellReply {
       )
   }
 
-  case class Complete(
+  final case class Complete(
     matches: List[String],
     cursor_start: Int,
     cursor_end: Int,
@@ -132,7 +132,7 @@ object ShellReply {
 
   object History {
 
-    case class Default(
+    final case class Default(
       history: List[(Int, Int, String)],
       status: Status.Ok
     ) extends History
@@ -147,7 +147,7 @@ object ShellReply {
         )
     }
 
-    case class WithOutput(
+    final case class WithOutput(
       history: List[(Int, Int, (String, String))], // FIXME Not sure about the type of ._3._2 of the elements
       status: Status.Ok
     ) extends History
@@ -172,7 +172,7 @@ object ShellReply {
     case object Complete extends IsComplete {
       def status = "complete"
     }
-    case class Incomplete(indent: String) extends IsComplete {
+    final case class Incomplete(indent: String) extends IsComplete {
       def status = "incomplete"
     }
     case object Invalid extends IsComplete {
@@ -183,22 +183,22 @@ object ShellReply {
     }
   }
 
-  case class Connect(
+  final case class Connect(
     shell_port: Int,
     iopub_port: Int,
     stdin_port: Int,
     hb_port: Int
   ) extends ShellReply
 
-  case class CommInfo(
+  final case class CommInfo(
     comms: Map[String, CommInfo.Info]
   ) extends ShellReply
 
   object CommInfo {
-    case class Info(target_name: String)
+    final case class Info(target_name: String)
   }
 
-  case class KernelInfo(
+  final case class KernelInfo(
     protocol_version: String, // X.Y.Z
     implementation: String,
     implementation_version: String, // X.Y.Z
@@ -208,7 +208,7 @@ object ShellReply {
   ) extends ShellReply
 
   object KernelInfo {
-    case class LanguageInfo(
+    final case class LanguageInfo(
       name: String,
       version: String, // X.Y.Z
       mimetype: String,
@@ -218,10 +218,10 @@ object ShellReply {
       codemirror_mode: Option[String] = None // only needed if it differs from name - FIXME could be a dict too?
     )
 
-    case class Link(text: String, url: String)
+    final case class Link(text: String, url: String)
   }
 
-  case class Shutdown(
+  final case class Shutdown(
     restart: Boolean
   ) extends ShellReply
 
