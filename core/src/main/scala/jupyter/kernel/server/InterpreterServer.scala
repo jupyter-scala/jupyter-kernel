@@ -9,7 +9,7 @@ import argonaut.{Json, Parse}
 
 import scala.collection.mutable
 import com.typesafe.scalalogging.LazyLogging
-import interpreter.{Interpreter, InterpreterHandler}
+import interpreter.{DisplayData, Interpreter, InterpreterHandler}
 import jupyter.api._
 import jupyter.kernel.stream.Streams
 import jupyter.kernel.protocol.{ Publish => PublishMsg, Comm => ProtocolComm, _ }
@@ -87,7 +87,15 @@ object InterpreterServer extends LazyLogging {
         def stderr(text: String) =
           pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stderr", text = text), ident = "stderr")).unsafePerformSync
         def display(items: (String, String)*) =
-          pubQueue.enqueueOne(t.publish("display_data", PublishMsg.DisplayData(items.toMap.mapValues(Json.jString), Map.empty))).unsafePerformSync
+          pubQueue.enqueueOne(
+            t.publish(
+              "display_data",
+              PublishMsg.DisplayData(
+                items.map { case (tpe, data) => DisplayData(tpe, data).jsonField }.toMap,
+                Map.empty
+              )
+            )
+          ).unsafePerformSync
 
         def comm(id: String) = comm0(id).comm(t)
 

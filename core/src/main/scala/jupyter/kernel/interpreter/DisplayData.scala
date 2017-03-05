@@ -1,6 +1,11 @@
 package jupyter.kernel.interpreter
 
-final case class DisplayData(mimeType: String, data: String)
+import argonaut.Json
+
+final case class DisplayData(mimeType: String, data: String) {
+  def jsonField: (String, Json) =
+    mimeType -> Json.jString(data)
+}
 
 object DisplayData {
 

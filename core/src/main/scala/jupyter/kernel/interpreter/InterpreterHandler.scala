@@ -127,7 +127,7 @@ object InterpreterHandler extends LazyLogging {
                 msg.publish(
                   "display_data",
                   Publish.DisplayData(
-                    value.map.mapValues(Json.jString),
+                    value.jsonMap,
                     Map.empty
                   )
                 )
@@ -136,7 +136,7 @@ object InterpreterHandler extends LazyLogging {
                   "execute_result",
                   Publish.ExecuteResult(
                     interpreter.executionCount,
-                    value.map.mapValues(Json.jString),
+                    value.jsonMap,
                     Map.empty
                   )
                 )

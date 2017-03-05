@@ -1,6 +1,7 @@
 package jupyter
 package kernel.interpreter
 
+import argonaut.Json
 import jupyter.api.Publish
 import jupyter.kernel.protocol.{ ParsedMessage, ShellReply }
 
@@ -45,10 +46,8 @@ object Interpreter {
 
   final case class Value(data: Seq[DisplayData]) extends Success {
 
-    lazy val map: Map[String, String] =
-      data.map {
-        case DisplayData(mime, value) => mime -> value
-      }.toMap
+    lazy val jsonMap: Map[String, Json] =
+      data.map(_.jsonField).toMap
   }
 
   case object NoValue extends Success
