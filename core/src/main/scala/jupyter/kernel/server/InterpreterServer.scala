@@ -18,7 +18,6 @@ import Formats._
 import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.async
 import scalaz.stream.async.mutable.Queue
-import scalaz.{-\/, \/, \/-}
 
 object InterpreterServer extends LazyLogging {
 
@@ -115,16 +114,16 @@ object InterpreterServer extends LazyLogging {
       comm0(id).received(msg)
     }
 
-    val process: (String \/ Message) => Task[Unit] = {
-      case -\/(err) =>
+    val process: Either[String, Message] => Task[Unit] = {
+      case Left(err) =>
         logger.debug(s"Error while decoding message: $err")
         Task.now(())
-      case \/-(msg) =>
+      case Right(msg) =>
         InterpreterHandler(interpreter, connectReply, commReceived, msg) match {
-          case -\/(err) =>
+          case Left(err) =>
             logger.error(s"Error while handling message: $err\n$msg")
             Task.now(())
-          case \/-(proc) =>
+          case Right(proc) =>
             proc.evalMap {
               case (channel, m) =>
                 queues(channel).enqueueOne(m)

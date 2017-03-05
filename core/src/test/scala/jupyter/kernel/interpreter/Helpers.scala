@@ -9,8 +9,6 @@ import java.util.UUID
 import jupyter.kernel.interpreter.Interpreter._
 
 import scala.util.Random.{nextInt => randomInt}
-import scalaz.Scalaz.ToEitherOps
-import scalaz.\/
 import argonaut._, Argonaut._
 import utest._
 
@@ -98,10 +96,10 @@ object Helpers {
     val commonId = UUID.randomUUID().toString
     for (((req, replies), idx) <- msgs.zipWithIndex) {
       val (msg, msgHdr) = req(idents, userName, sessionId, version)
-      val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr, version)).map { case (c, m) => c -> m.eraseMsgId.right }
-      val response = InterpreterHandler(intp, connectReply, (_, _) => (), msg).map(_.runLog.unsafePerformSync.map { case (c, m) => c -> m.decodeAs[Json].map(_.eraseMsgId) })
+      val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr, version)).map { case (c, m) => c -> Right(m.eraseMsgId) }
+      val response = InterpreterHandler(intp, connectReply, (_, _) => (), msg).right.map(_.runLog.unsafePerformSync.map { case (c, m) => c -> m.decodeAs[Json].right.map(_.eraseMsgId) })
       assert(response.isRight)
-      assertCmp(response.toOption.get, expected)
+      assertCmp(response.right.get, expected)
     }
   }
 

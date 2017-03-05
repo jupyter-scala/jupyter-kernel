@@ -14,7 +14,6 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.util.control.NonFatal
 import scalaz.concurrent.{ Strategy, Task }
 import scalaz.stream.Process
-import scalaz.{ -\/, \/ }
 
 object InterpreterHandler extends LazyLogging {
 
@@ -269,9 +268,9 @@ object InterpreterHandler extends LazyLogging {
     msg: Message
   )(implicit
     pool: ExecutorService
-  ): String \/ Process[Task, (Channel, Message)] = try {
+  ): Either[String, Process[Task, (Channel, Message)]] = try {
 
-    msg.msgType.flatMap {
+    msg.msgType.right.flatMap {
       case "connect_request" =>
         msg.as[ShellRequest.Connect.type] { parsedMessage =>
           single(connect(connectReply, parsedMessage))
@@ -347,6 +346,6 @@ object InterpreterHandler extends LazyLogging {
   } catch {
     case NonFatal(e) =>
       logger.error(s"Exception while handling message\n$msg", e)
-      -\/(e.toString)
+      Left(e.toString)
   }
 }

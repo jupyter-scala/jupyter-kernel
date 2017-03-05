@@ -6,7 +6,6 @@ import jupyter.kernel.Message
 import jupyter.kernel.protocol._
 import jupyter.kernel.protocol.Formats._
 
-import scalaz.-\/
 import utest._
 
 object InterpreterHandlerTests extends TestSuite {
@@ -19,7 +18,7 @@ object InterpreterHandlerTests extends TestSuite {
     'malformedHeader{
       val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{", "", "{}", "{}"))
       assertMatch(response) {
-        case -\/(_) =>
+        case Left(_) =>
       }
     }
 
@@ -27,7 +26,7 @@ object InterpreterHandlerTests extends TestSuite {
       // FIXME Provide a *real* header
       val response = InterpreterHandler(echoInterpreter(), randomConnectReply(), (_, _) => (), Message(Nil, "{}", "", "{}", "{}"))
       assertMatch(response) {
-        case -\/(_) =>
+        case Left(_) =>
       }
     }
 

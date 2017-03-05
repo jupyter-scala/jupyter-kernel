@@ -3,11 +3,10 @@ package stream
 
 import jupyter.kernel.protocol.Channel
 
-import scalaz.\/
 import scalaz.concurrent.Task
 import scalaz.stream.{ Process, Sink }
 
 final case class Streams(
-  processes: Channel => (Process[Task, String \/ Message], Sink[Task, Message]),
+  processes: Channel => (Process[Task, Either[String, Message]], Sink[Task, Message]),
   stop: () => Unit
 )
