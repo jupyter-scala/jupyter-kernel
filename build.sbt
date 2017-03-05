@@ -43,7 +43,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("releases"),
-    "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
+    "Scalaz Bintray Repo" at "https://dl.bintray.com/scalaz/releases"
   ),
   libraryDependencies ++= {
     if (scalaBinaryVersion.value == "2.10") Seq(
