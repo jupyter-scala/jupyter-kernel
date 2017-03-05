@@ -11,8 +11,6 @@ import jupyter.kernel.protocol.{ Channel, Connection, HMAC }
 import org.zeromq.ZMQ
 import org.zeromq.ZMQ.{ Poller, PollItem }
 
-import scalaz.\/
-import scalaz.Scalaz.ToEitherOps
 import scalaz.concurrent.Task
 import scalaz.stream.{ Process, Sink }
 
@@ -157,12 +155,12 @@ object ZMQStreams extends LazyLogging {
         lazy val expectedSignatureOpt = hmac(header, parentHeader, metaData, content)
 
         if (connection.key.nonEmpty && expectedSignatureOpt != signature)
-          s"Invalid HMAC signature, got $signature, expected $expectedSignatureOpt".left
+          Left(s"Invalid HMAC signature, got $signature, expected $expectedSignatureOpt")
         else
-          Message(idents, header, parentHeader, metaData, content).right
+          Right(Message(idents, header, parentHeader, metaData, content))
       }
 
-      lazy val helper: Process[Task, String \/ Message] =
+      lazy val helper: Process[Task, Either[String, Message]] =
         Process.await(poll) {
           case None =>
             Process.halt

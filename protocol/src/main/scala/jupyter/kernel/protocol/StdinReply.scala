@@ -4,7 +4,7 @@ sealed abstract class StdinReply extends Product with Serializable
 
 object StdinReply {
 
-  case class Input(
+  final case class Input(
     value: String
   ) extends StdinReply
 

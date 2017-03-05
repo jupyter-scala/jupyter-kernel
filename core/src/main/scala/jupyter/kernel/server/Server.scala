@@ -18,12 +18,11 @@ import jupyter.kernel.protocol.{Connection, Formats, ShellReply}
 import jupyter.kernel.interpreter.InterpreterKernel
 import Formats.{ encodeConnection, decodeConnection }
 
-import scalaz._
 import scalaz.concurrent.Task
 
 object Server extends LazyLogging {
 
-  case class Options(
+  final case class Options(
     connectionFile: String = "",
     eraseConnectionFile: Boolean = false,
     quiet: Boolean = false

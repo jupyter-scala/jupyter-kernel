@@ -9,8 +9,6 @@ import java.util.UUID
 import jupyter.kernel.interpreter.Interpreter._
 
 import scala.util.Random.{nextInt => randomInt}
-import scalaz.Scalaz.ToEitherOps
-import scalaz.\/
 import argonaut._, Argonaut._
 import utest._
 
@@ -59,7 +57,7 @@ object Helpers {
     }
   }
 
-  case class Req[T: EncodeJson](msgType: String, t: T) {
+  final case class Req[T: EncodeJson](msgType: String, t: T) {
     def apply(idents: List[Seq[Byte]], userName: String, sessionId: String, version: Option[String]): (Message, Header) = {
       val msg = ParsedMessage(
         idents, Header(UUID.randomUUID().toString, userName, sessionId, msgType, version), None, Map.empty,
@@ -73,11 +71,11 @@ object Helpers {
   sealed abstract class Reply extends Product with Serializable {
     def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]): (Channel, ParsedMessage[Json])
   }
-  case class ReqReply[T: EncodeJson](msgType: String, t: T) extends Reply {
+  final case class ReqReply[T: EncodeJson](msgType: String, t: T) extends Reply {
     def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]) =
       Channel.Requests -> ParsedMessage(defaultIdents, Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t.asJson)
   }
-  case class PubReply[T: EncodeJson](idents: List[String], msgType: String, t: T) extends Reply {
+  final case class PubReply[T: EncodeJson](idents: List[String], msgType: String, t: T) extends Reply {
     def apply(defaultIdents: List[Seq[Byte]], userName: String, sessionId: String, replyId: String, parHdr: Header, version: Option[String]) =
       Channel.Publish -> ParsedMessage(idents.map(_.getBytes("UTF-8").toSeq), Header(replyId, userName, sessionId, msgType, version), Some(parHdr), Map.empty, t.asJson)
   }
@@ -98,10 +96,10 @@ object Helpers {
     val commonId = UUID.randomUUID().toString
     for (((req, replies), idx) <- msgs.zipWithIndex) {
       val (msg, msgHdr) = req(idents, userName, sessionId, version)
-      val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr, version)).map { case (c, m) => c -> m.eraseMsgId.right }
-      val response = InterpreterHandler(intp, connectReply, (_, _) => (), msg).map(_.runLog.unsafePerformSync.map { case (c, m) => c -> m.decodeAs[Json].map(_.eraseMsgId) })
+      val expected = replies.map(_(idents, userName, sessionId, commonId, msgHdr, version)).map { case (c, m) => c -> Right(m.eraseMsgId) }
+      val response = InterpreterHandler(intp, connectReply, (_, _) => (), msg).right.map(_.runLog.unsafePerformSync.map { case (c, m) => c -> m.decodeAs[Json].right.map(_.eraseMsgId) })
       assert(response.isRight)
-      assertCmp(response.toOption.get, expected)
+      assertCmp(response.right.get, expected)
     }
   }
 

@@ -7,7 +7,7 @@ import java.util.UUID
 import jupyter.kernel.Message
 import jupyter.kernel.protocol.Formats.{ decodeHeader, encodeHeader }
 
-case class ParsedMessage[Content](
+final case class ParsedMessage[Content](
   idents: List[Seq[Byte]],
   header: Header,
   parent_header: Option[Header],

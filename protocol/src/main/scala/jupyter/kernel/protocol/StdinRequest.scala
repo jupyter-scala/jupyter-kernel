@@ -4,7 +4,7 @@ sealed abstract class StdinRequest extends Product with Serializable
 
 object StdinRequest {
 
-  case class Input(
+  final case class Input(
     prompt: String,
     password: Boolean
   ) extends StdinRequest

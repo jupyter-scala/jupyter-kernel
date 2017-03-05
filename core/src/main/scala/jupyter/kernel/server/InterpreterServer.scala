@@ -9,7 +9,7 @@ import argonaut.{Json, Parse}
 
 import scala.collection.mutable
 import com.typesafe.scalalogging.LazyLogging
-import interpreter.{Interpreter, InterpreterHandler}
+import interpreter.{DisplayData, Interpreter, InterpreterHandler}
 import jupyter.api._
 import jupyter.kernel.stream.Streams
 import jupyter.kernel.protocol.{ Publish => PublishMsg, Comm => ProtocolComm, _ }
@@ -18,7 +18,6 @@ import Formats._
 import scalaz.concurrent.{Strategy, Task}
 import scalaz.stream.async
 import scalaz.stream.async.mutable.Queue
-import scalaz.{-\/, \/, \/-}
 
 object InterpreterServer extends LazyLogging {
 
@@ -88,7 +87,15 @@ object InterpreterServer extends LazyLogging {
         def stderr(text: String) =
           pubQueue.enqueueOne(t.publish("stream", PublishMsg.Stream(name = "stderr", text = text), ident = "stderr")).unsafePerformSync
         def display(items: (String, String)*) =
-          pubQueue.enqueueOne(t.publish("display_data", PublishMsg.DisplayData(items.toMap.mapValues(Json.jString), Map.empty))).unsafePerformSync
+          pubQueue.enqueueOne(
+            t.publish(
+              "display_data",
+              PublishMsg.DisplayData(
+                items.map { case (tpe, data) => DisplayData(tpe, data).jsonField }.toMap,
+                Map.empty
+              )
+            )
+          ).unsafePerformSync
 
         def comm(id: String) = comm0(id).comm(t)
 
@@ -115,16 +122,16 @@ object InterpreterServer extends LazyLogging {
       comm0(id).received(msg)
     }
 
-    val process: (String \/ Message) => Task[Unit] = {
-      case -\/(err) =>
+    val process: Either[String, Message] => Task[Unit] = {
+      case Left(err) =>
         logger.debug(s"Error while decoding message: $err")
         Task.now(())
-      case \/-(msg) =>
+      case Right(msg) =>
         InterpreterHandler(interpreter, connectReply, commReceived, msg) match {
-          case -\/(err) =>
+          case Left(err) =>
             logger.error(s"Error while handling message: $err\n$msg")
             Task.now(())
-          case \/-(proc) =>
+          case Right(proc) =>
             proc.evalMap {
               case (channel, m) =>
                 queues(channel).enqueueOne(m)

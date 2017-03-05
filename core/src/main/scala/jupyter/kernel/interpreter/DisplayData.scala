@@ -1,6 +1,27 @@
 package jupyter.kernel.interpreter
 
-case class DisplayData(mimeType: String, data: String)
+import argonaut.{Json, Parse}
+
+final case class DisplayData(mimeType: String, data: String) {
+
+  private def hasJsonMimeType: Boolean =
+    mimeType == "application/json" ||
+      (mimeType.startsWith("application/") && mimeType.endsWith("+json"))
+
+  def jsonField: (String, Json) = {
+
+    def asString = Json.jString(data)
+    def asJsonOption = Parse.parse(data).right.toOption
+
+    val json =
+      if (hasJsonMimeType)
+        asJsonOption.getOrElse(asString)
+      else
+        asString
+
+    mimeType -> json
+  }
+}
 
 object DisplayData {
 

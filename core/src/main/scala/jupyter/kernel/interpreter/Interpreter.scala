@@ -1,6 +1,7 @@
 package jupyter
 package kernel.interpreter
 
+import argonaut.Json
 import jupyter.api.Publish
 import jupyter.kernel.protocol.{ ParsedMessage, ShellReply }
 
@@ -35,7 +36,7 @@ object Interpreter {
 
   object IsComplete {
     case object Complete extends IsComplete
-    case class Incomplete(indent: String) extends IsComplete
+    final case class Incomplete(indent: String) extends IsComplete
     case object Invalid extends IsComplete
   }
 
@@ -43,17 +44,15 @@ object Interpreter {
   sealed abstract class Success extends Result
   sealed abstract class Failure extends Result
 
-  case class Value(data: Seq[DisplayData]) extends Success {
+  final case class Value(data: Seq[DisplayData]) extends Success {
 
-    lazy val map: Map[String, String] =
-      data.map {
-        case DisplayData(mime, value) => mime -> value
-      }.toMap
+    lazy val jsonMap: Map[String, Json] =
+      data.map(_.jsonField).toMap
   }
 
   case object NoValue extends Success
 
-  case class Exception(
+  final case class Exception(
     name: String,
     msg: String,
     stackTrace: List[String]
@@ -61,7 +60,7 @@ object Interpreter {
     def traceBack = s"$name: $msg" :: stackTrace.map("    " + _)
   }
 
-  case class Error(message: String) extends Failure
+  final case class Error(message: String) extends Failure
 
   case object Cancelled extends Failure
 }

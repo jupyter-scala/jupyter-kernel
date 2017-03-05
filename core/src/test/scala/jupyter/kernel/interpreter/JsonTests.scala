@@ -15,7 +15,7 @@ object JsonTests extends TestSuite {
         val abortReply = ShellReply.Abort()
 
         def statusOf(json: Json): Option[String] = {
-          case class WithStatus(status: String)
+          final case class WithStatus(status: String)
           json.asJson.as[WithStatus].toOption.map(_.status)
         }
 
