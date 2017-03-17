@@ -25,9 +25,16 @@ lazy val kernel = project.in(file("core"))
     libraryDependencies ++= Seq(
       "com.github.alexarchambault" %% "argonaut-shapeless_6.2" % argonautShapelessVersion,
       "org.zeromq" % "jeromq" % jeromqVersion,
-      "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingVersion,
       "org.scalaz.stream" %% "scalaz-stream" % fs2Version
     ),
+    libraryDependencies += {
+      scalaBinaryVersion.value match {
+        case "2.10" =>
+          "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2"
+        case _ =>
+          "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingVersion
+      }
+    },
     publishArtifact in (Test, packageBin) := true,
     publishArtifact in (Test, packageSrc) := true
   )
