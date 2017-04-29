@@ -155,7 +155,7 @@ object InterpreterServer extends LazyLogging {
         ),
         None,
         Map.empty,
-        PublishMsg.Status(PublishMsg.ExecutionState0.Starting)
+        PublishMsg.Status(PublishMsg.ExecutionState0.Idle)
       ).toMessage
     )
 
