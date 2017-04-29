@@ -3,8 +3,8 @@ import sbt.Keys._
 
 object Deps {
 
-  def argonaut = "io.argonaut" %% "argonaut" % "6.2-RC2"
-  def argonautShapeless = "com.github.alexarchambault" %% "argonaut-shapeless_6.2" % "1.2.0-M4"
+  def argonaut = "io.argonaut" %% "argonaut" % "6.2"
+  def argonautShapeless = "com.github.alexarchambault" %% "argonaut-shapeless_6.2" % "1.2.0-M5"
   def jeromq = "org.zeromq" % "jeromq" % "0.3.6"
   def macroParadise = "org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full
   def scalaLogging = Def.setting {
