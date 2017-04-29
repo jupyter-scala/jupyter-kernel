@@ -22,7 +22,7 @@ object HMAC {
     if (key.isEmpty)
       empty
     else {
-      val algorithm0 = "hmac-sha256".replace("-", "")
+      val algorithm0 = algorithm.getOrElse("hmac-sha256").replace("-", "")
       val mac = Mac.getInstance(algorithm0)
       val keySpec = new SecretKeySpec(key.getBytes("UTF-8"), algorithm0)
 

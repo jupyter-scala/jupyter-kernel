@@ -187,6 +187,6 @@ object ZMQStreams extends LazyLogging {
       channel -> ((process(channel), sink(channel)))
     }.toMap
 
-    Streams(processes.apply, close)
+    Streams(processes.apply, () => close())
   }
 }
